@@ -26,12 +26,12 @@ HVAC::HVAC()
 	m_EE.coolTemp[0] = 790;
 	m_EE.heatTemp[1] = 740;         // 74.0
 	m_EE.heatTemp[0] = 700;
-    m_EE.eHeatThresh = 30;          // Setting this low (30 deg) for now
-    m_EE.id = 0xAA55;               // EE value for validity check or struct size changes
+	m_EE.eHeatThresh = 30;          // Setting this low (30 deg) for now
+	m_EE.id = 0xAA55;               // EE value for validity check or struct size changes
 
-    memset(m_fcData, -1, sizeof(m_fcData)); // invalidate forecast
+	memset(m_fcData, -1, sizeof(m_fcData)); // invalidate forecast
 
-    m_fcPeaks[0].h = -50;       // set as invalid
+	m_fcPeaks[0].h = -50;       // set as invalid
 
 	pinMode(P_FAN, OUTPUT);
 	pinMode(P_COOL, OUTPUT);
@@ -53,7 +53,7 @@ void HVAC::fanSwitch(bool bOn)
 	}
 	else	// fan shut off
 	{
-        fanTimeAccum();
+		fanTimeAccum();
 	}
 }
 
@@ -77,11 +77,11 @@ void HVAC::service()
 	{
 		m_fanOnTimer++;			        	// running time counter
 
-        if(m_fanOnTimer >= 60*60*12)        // 12 hours, add up and reset
-        {
-            fanTimeAccum();
-            m_fanOnTimer = 0;
-        }
+		if(m_fanOnTimer >= 60*60*12)        // 12 hours, add up and reset
+		{
+			fanTimeAccum();
+			m_fanOnTimer = 0;
+		}
 	}
 
 	if(m_fanPostTimer)		        		// Fan conintuation delay
@@ -97,7 +97,7 @@ void HVAC::service()
 		if(++m_cycleTimer < 20)		        // Block changes for at least 20 seconds
 			return;
         if(m_cycleTimer >= m_EE.cycleMax)   // running too long (todo: skip for eHeat?)
-            m_bStop = true;
+			m_bStop = true;
 	}
 	else
 	{
@@ -336,16 +336,40 @@ void HVAC::calcTargetTemp(int8_t mode)
         case Mode_Cool:
 //        	m_targetTemp  = tween( m_EE.coolTemp[bLowHigh?0:1], m_EE.coolTemp[bLowHigh?1:0], m, hrs);
 
-        	m_targetTemp  = scaleRange( m_EE.coolTemp[0], m_EE.coolTemp[1], m_fcPeaks[bLowHigh?0:1].t, m_fcPeaks[bLowHigh?1:0].t, m_outTemp);
+            if( m_outTemp < m_fcPeaks[bLowHigh?0:1].t * 10 )    // Todo: Fix the peak error
+            {
+                Serial.println("Error: outTemp range low");
+                m_targetTemp = m_EE.coolTemp[0];
+            }
+            else if( m_outTemp > m_fcPeaks[bLowHigh?1:0].t * 10 )
+            {
+                Serial.println("Error: outTemp range high");
+                m_targetTemp = m_EE.coolTemp[1];
+            }else
+            {
+            	m_targetTemp  = scaleRange( m_EE.coolTemp[0], m_EE.coolTemp[1], m_fcPeaks[bLowHigh?0:1].t, m_fcPeaks[bLowHigh?1:0].t, m_outTemp);
+            }
             break;
         case Mode_Heat:
   //      	m_targetTemp  = tween( m_EE.heatTemp[bLowHigh?0:1], m_EE.heatTemp[bLowHigh?1:0], m, hrs);
 
-        	m_targetTemp  = scaleRange( m_EE.heatTemp[0], m_EE.heatTemp[1], m_fcPeaks[bLowHigh?0:1].t, m_fcPeaks[bLowHigh?1:0].t, m_outTemp);
+            if( m_outTemp < m_fcPeaks[bLowHigh?0:1].t * 10 )
+            {
+                Serial.println("Error: outTemp range low");
+                m_targetTemp = m_EE.heatTemp[0];
+            }
+            else if( m_outTemp > m_fcPeaks[bLowHigh?1:0].t * 10 )
+            {
+                Serial.println("Error: outTemp range high");
+                m_targetTemp = m_EE.heatTemp[1];
+            }else
+            {
+            	m_targetTemp  = scaleRange( m_EE.heatTemp[0], m_EE.heatTemp[1], m_fcPeaks[bLowHigh?0:1].t, m_fcPeaks[bLowHigh?1:0].t, m_outTemp);
+            }
             break;
     }
 
-    Serial.print("Range? LH=");
+    Serial.print("Range LH=");
     Serial.print(bLowHigh);
     Serial.print(" hrs=");
     Serial.print(hrs);
@@ -375,6 +399,9 @@ int HVAC::tween(uint16_t t1, uint16_t t2, int m, int8_t h)
 // scale target temp of inside range to current out temp of outside range
 int HVAC::scaleRange(uint16_t inL, uint16_t inH, int8_t outL, int8_t outH, int16_t outTemp)
 {
+    if(outTemp > outH * 10)  return inH;
+    if(outTemp < outL * 10)  return inL;
+
         Serial.print("scale ");
         Serial.print(inL);
         Serial.print(" ");
@@ -572,7 +599,7 @@ void HVAC::updatePeaks()
     fcL.t = 126;
     fcH.t = -50;
 
-    // Get low/high for next 24 hours
+    // Get low/high for next 24 hours  Todo: change to AM/PM fixed peak
     for(int8_t i = 0; i < 8; i++)  // 8*3 = 24
     {
         int8_t t = m_fcData[i].t;
