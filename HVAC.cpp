@@ -53,7 +53,7 @@ void HVAC::fanSwitch(bool bOn)
 	}
 	else	// fan shut off
 	{
-		fanTimeAccum();
+        fanTimeAccum();
 	}
 }
 
@@ -77,11 +77,11 @@ void HVAC::service()
 	{
 		m_fanOnTimer++;			        	// running time counter
 
-		if(m_fanOnTimer >= 60*60*12)        // 12 hours, add up and reset
-		{
-			fanTimeAccum();
-			m_fanOnTimer = 0;
-		}
+        if(m_fanOnTimer >= 60*60*12)        // 12 hours, add up and reset
+        {
+            fanTimeAccum();
+            m_fanOnTimer = 0;
+        }
 	}
 
 	if(m_fanPostTimer)		        		// Fan conintuation delay
@@ -97,7 +97,7 @@ void HVAC::service()
 		if(++m_cycleTimer < 20)		        // Block changes for at least 20 seconds
 			return;
         if(m_cycleTimer >= m_EE.cycleMax)   // running too long (todo: skip for eHeat?)
-			m_bStop = true;
+            m_bStop = true;
 	}
 	else
 	{
@@ -334,37 +334,33 @@ void HVAC::calcTargetTemp(int8_t mode)
     switch(mode)
     {
         case Mode_Cool:
-//        	m_targetTemp  = tween( m_EE.coolTemp[bLowHigh?0:1], m_EE.coolTemp[bLowHigh?1:0], m, hrs);
-
-            if( m_outTemp < m_fcPeaks[bLowHigh?0:1].t * 10 )    // Todo: Fix the peak error
+            if( m_outTemp < m_outMin * 10 )    // Todo: Fix the peak error
             {
                 Serial.println("Error: outTemp range low");
                 m_targetTemp = m_EE.coolTemp[0];
             }
-            else if( m_outTemp > m_fcPeaks[bLowHigh?1:0].t * 10 )
+            else if( m_outTemp > m_outMax * 10 )
             {
                 Serial.println("Error: outTemp range high");
                 m_targetTemp = m_EE.coolTemp[1];
             }else
             {
-            	m_targetTemp  = scaleRange( m_EE.coolTemp[0], m_EE.coolTemp[1], m_fcPeaks[bLowHigh?0:1].t, m_fcPeaks[bLowHigh?1:0].t, m_outTemp);
+            	m_targetTemp  = scaleRange( m_EE.coolTemp[0], m_EE.coolTemp[1]);
             }
             break;
         case Mode_Heat:
-  //      	m_targetTemp  = tween( m_EE.heatTemp[bLowHigh?0:1], m_EE.heatTemp[bLowHigh?1:0], m, hrs);
-
-            if( m_outTemp < m_fcPeaks[bLowHigh?0:1].t * 10 )
+            if( m_outTemp < m_outMin * 10 )
             {
                 Serial.println("Error: outTemp range low");
                 m_targetTemp = m_EE.heatTemp[0];
             }
-            else if( m_outTemp > m_fcPeaks[bLowHigh?1:0].t * 10 )
+            else if( m_outTemp > m_outMax * 10 )
             {
                 Serial.println("Error: outTemp range high");
                 m_targetTemp = m_EE.heatTemp[1];
             }else
             {
-            	m_targetTemp  = scaleRange( m_EE.heatTemp[0], m_EE.heatTemp[1], m_fcPeaks[bLowHigh?0:1].t, m_fcPeaks[bLowHigh?1:0].t, m_outTemp);
+            	m_targetTemp  = scaleRange( m_EE.heatTemp[0], m_EE.heatTemp[1]);
             }
             break;
     }
@@ -377,43 +373,24 @@ void HVAC::calcTargetTemp(int8_t mode)
     Serial.println(m_targetTemp);
 }
 
-// get value at current minute between hours
-int HVAC::tween(uint16_t t1, uint16_t t2, int m, int8_t h)
-{
-    if(t1 == t2) return t1;
-
-        Serial.print("tween ");
-        Serial.print(t1);
-        Serial.print(" ");
-        Serial.print(t2);
-        Serial.print(" ");
-        Serial.print(m);
-        Serial.print(" ");
-        Serial.println(h);
-
-    if(h == 0) h = 1; // div by zero check
-	double t = (double)(t2 - t1) * (m * 100 / (60 * h)) / 100;
-	return (int)(t + t1);
-}
-
 // scale target temp of inside range to current out temp of outside range
-int HVAC::scaleRange(uint16_t inL, uint16_t inH, int8_t outL, int8_t outH, int16_t outTemp)
+int HVAC::scaleRange(uint16_t inL, uint16_t inH)
 {
-    if(outTemp > outH * 10)  return inH;
-    if(outTemp < outL * 10)  return inL;
+    if(m_outTemp > m_outMax * 10)  return inH;
+    if(m_outTemp < m_outMin * 10)  return inL;
 
         Serial.print("scale ");
         Serial.print(inL);
         Serial.print(" ");
         Serial.print(inH);
         Serial.print(" ");
-        Serial.print(outL);
+        Serial.print(m_outMin);
         Serial.print(" ");
-        Serial.print(outH);
+        Serial.print(m_outMax);
         Serial.print(" ");
-        Serial.println(outTemp);
+        Serial.println(m_outTemp);
 
-    return (outTemp-(outL*10)) * (inH-inL) / ((outH*10)-(outL*10)) + inL;
+    return (m_outTemp-(m_outMin*10)) * (inH-inL) / ((m_outMax*10)-(m_outMin*10)) + inL;
 }
 
 // Analyze temp change over a cycle and log it
@@ -593,8 +570,11 @@ void HVAC::updateOutdoorTemp(int16_t outTemp)
 }
 
 // Update min/max for next 24 hrs
-void HVAC::updatePeaks()
+void HVAC::updatePeaks(int8_t min, int8_t max)
 {
+    m_outMin = min;
+    m_outMax = max;
+
     Forecast fcL, fcH, fcTemp;
     fcL.t = 126;
     fcH.t = -50;
@@ -667,7 +647,6 @@ static const char *cGCmds[] =
 {
     "interface",
 	"settings",
-	"status",
 	"temp",
     "log",
     NULL
@@ -682,32 +661,30 @@ int HVAC::getVar(String s)
 	switch(CmdIdx(s, cGCmds))
 	{
         case 0:     // interface
-            r = 0x74687374;                 // unique response = thermostat
+            r = 'thst';//0x74687374;                 // unique response = thermostat
+            break;
 		case 1:    // settings
 			r = m_EE.Mode;			    	// 2
-			r |= (m_heatMode << 2);	        // 1
-			r |= (m_AutoMode << 3);		    // 3
-			r |= (m_bFanMode ? 0x40:0); 	// 1
-			r |= (m_bRunning ? 0x80:0); 	// 1
-			r |= (m_bFanRunning ? 0x100:0); // 1
-			r |= m_EE.eHeatThresh << 9;     // 6 (63 max)
-			r |= m_EE.fanPostDelay << 15;	// 8 (255)
-//			r |= xx << 23;	                // 9 left
-            sprintf(m_szResult, "{\"c0\":%d,\"c1\":%d,\"h0\":%d,\"h1\":%d,\"tt\":%d,\"ct\":%d,\"im\":%d,\"cn\":%d,\"cx\":%d,\"fh\":%d}",  // ~86
+			r |= (m_AutoMode << 2);		    // 2
+			r |= (m_heatMode << 3);	        // 1
+			r |= (m_bFanMode ? 0x20:0); 	// 1
+			r |= (m_bRunning ? 0x40:0); 	// 1
+			r |= (m_bFanRunning ? 0x80:0);  // 1
+			r |= m_EE.eHeatThresh << 8;     // 6 (63 max)
+			r |= m_EE.fanPostDelay << 14;	// 8 (255)
+			r |= m_EE.cycleThresh << 22; 	// 8
+            sprintf(m_szResult, "{\"c0\":%d,\"c1\":%d,\"h0\":%d,\"h1\":%d,\"it\":%d,\"tt\":%d,\"im\":%d,\"cn\":%d,\"cx\":%d,\"fh\":%d,\"ot\":%d,\"ol\":%d,\"oh\":%d,\"ct\":%d,\"ft\":%d,\"rt\":%d,\"td\":%d}",
+            // 138-170
                 m_EE.coolTemp[0], m_EE.coolTemp[1], m_EE.heatTemp[0], m_EE.heatTemp[1],
-                m_targetTemp, m_EE.cycleThresh, m_EE.idleMin, m_EE.cycleMin, m_EE.cycleMax, m_EE.filterHours);
-			break; // 23 bits
-        case 2: // status
-			r = m_inTemp;		            //
-            sprintf(m_szResult, "{\"ot\":%d,\"fc\":%d,\"ct\":%d,\"ft\":%d,\"rt\":%d,\"td\":%d}",  // 46-80
-                m_outTemp, m_fcData[1].t, m_cycleTimer, m_fanOnTimer, m_runTotal, m_tempDiffTotal);
-			break;	// <16 bits
-        case 3: // temp
+                m_inTemp, m_targetTemp, m_EE.idleMin, m_EE.cycleMin, m_EE.cycleMax, m_EE.filterHours,
+                m_outTemp, m_outMin, m_outMax, m_cycleTimer, m_fanOnTimer, m_runTotal, m_tempDiffTotal);
+			break;
+        case 2: // temp
 			r = m_inTemp;		            //
             r |= m_rh << 10;
             r |= m_outTemp << 20;
 			break;	// <16 bits
-        case 4:     // log
+        case 3:     // log
             for(i = 0; i < 32; i++)         // count how many left for return value
                 if(m_logs[i].time)
                     r++;
