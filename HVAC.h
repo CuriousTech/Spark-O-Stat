@@ -69,7 +69,7 @@ public:
     void    clearNotification(int n);
 
     EEConfig m_EE;
-    char    m_szResult[128];
+    char    m_szResult[180];
     Forecast m_fcData[18];
     int16_t m_outTemp;          // adjusted current temp *10
     uint16_t m_targetTemp;      // end temp for cycle
