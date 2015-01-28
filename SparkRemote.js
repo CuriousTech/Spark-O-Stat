@@ -164,41 +164,34 @@ function OnTimer()
 Pm.Echo('settings ' + settings)
 
 		mode = settings & 3
-		heatMode = (settings >> 2) & 1
-		autoMode = (settings >> 3) & 3
-		fanMode = (settings >> 6) & 1
-		running = (settings>> 7) & 1
+		autoMode = (settings >> 2) & 3
+		heatMode = (settings >> 4) & 1
+		fanMode = (settings >> 5) & 1
+		running = (settings>> 6) & 1
 		fan = (settings>> 8) & 1
-		eHeatThresh = (settings >> 9) & 0x3F
-		fanDelay = (settings >> 15) & 0xFF
+		eHeatThresh = (settings >> 8) & 0x3F
+		fanDelay = (settings >> 14) & 0xFF
+		cycleThresh = (settings >> 22) & 0xFF
 
 		res = ReadVar( 'result' )	// result set by settings call
 
-Pm.Echo('res ' + res)
+Pm.Echo('settings ' + res)
 		Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
-				res.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + res + ')')
+			res.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + res + ')')
 
 		coolTempL = +Json.c0 / 10
 		coolTempH = +Json.c1 / 10
-		targetTemp = +Json.tt / 10
 		heatTempL = +Json.h0 / 10
 		heatTempH = +Json.h1 / 10
-	     cycleThresh = +Json.ct / 10
+		inTemp = +Json.it / 10
+		targetTemp = +Json.tt / 10
 		idleMin =+ Json.im
 		cycleMin = +Json.cn
 		cycleMax = +Json.cx
 		filterHours = +Json.fh
-
-		inTemp = GetVar( 'status' ) / 10
-		res = ReadVar( 'result' )
-
-		Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
-				res.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + res + ')')
-
-Pm.Echo('inTemp ' + inTemp)
-Pm.Echo('res ' + res)
 		outTemp = Json.ot / 10
-		outFut = +Json.fc
+		outFL = +Json.ol
+		outFH = +Json.oh
 		cycleTimer = +Json.ct
 		fanTimer = +Json.ft
 		runTotal = +Json.rt
@@ -213,6 +206,8 @@ Pm.Echo('res ' + res)
 	{
 		res = ReadVar( 'result' )
 
+Pm.Echo(' ' )
+Pm.Echo('log ' + res)
 		JsonObj = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 			res.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + res + ')')
 		LogHVAC( JsonObj.time, JsonObj.mode, JsonObj.secs, JsonObj.t1 / 10, JsonObj.rh1 / 10, JsonObj.t2 / 10, JsonObj.rh2 / 10 )
@@ -230,8 +225,8 @@ function Draw()
 {
 	Pm.Window('SparkIO')
 
-	Gdi.Width = 216 // resize drawing area
-	Gdi.Height = 292
+	Gdi.Width = 208 // resize drawing area
+	Gdi.Height = 280
 
 	Gdi.Clear(0) // transaprent
 
@@ -260,7 +255,7 @@ function Draw()
 	Gdi.Text( date.getHours() + ':'+m, Gdi.Width-54, 1 )
 
 	x = 5
-	y = 20
+	y = 22
 
 	Gdi.Text('In:', x, y)
 	Gdi.Text(inTemp + '°', x + 20, y)
@@ -268,10 +263,10 @@ function Draw()
 	Gdi.Text('Trg:', x + 65, y)
 	Gdi.Text(targetTemp + '°', x + 93, y)
 
-	Gdi.Text('Out:', x + 135, y)
-	Gdi.Text(outTemp + '°', x + 163, y)
+	Gdi.Text('Out:', x + 134, y)
+	Gdi.Text(outTemp + '°', x + 162, y)
 
-	y = btnY+2
+	y = btnY
 	Gdi.Text('Fan:', x, y)
 	Gdi.Text(fan ? "On" : "Off", x + 100, y, 'Right')
 	y += 20
@@ -290,15 +285,15 @@ function Draw()
 	Gdi.Text(running ? s : "Off", x + 100, y, 'Right')
 	y += bh
 
-	Gdi.Text('Cool Hi:', x, y); 	Gdi.Text(coolTempH.toFixed(1) + '°', x + 116, y, 'Right')
+	Gdi.Text('Cool Hi:', x, y); 	Gdi.Text(coolTempH.toFixed(1) + '°', x + 112, y, 'Right')
 	y += bh
-	Gdi.Text('Cool Lo:', x, y); 	Gdi.Text(coolTempL.toFixed(1) + '°', x + 116, y, 'Right')
+	Gdi.Text('Cool Lo:', x, y); 	Gdi.Text(coolTempL.toFixed(1) + '°', x + 112, y, 'Right')
 	y += bh
-	Gdi.Text('Heat Hi:', x, y); 	Gdi.Text(heatTempH.toFixed(1) + '°', x + 116, y, 'Right')
+	Gdi.Text('Heat Hi:', x, y); 	Gdi.Text(heatTempH.toFixed(1) + '°', x + 112, y, 'Right')
 	y += bh
-	Gdi.Text('Heat Lo:', x, y); 	Gdi.Text(heatTempL.toFixed(1) + '°', x + 116, y, 'Right')
+	Gdi.Text('Heat Lo:', x, y); 	Gdi.Text(heatTempL.toFixed(1) + '°', x + 112, y, 'Right')
 	y += bh
-	Gdi.Text('Threshold:', x, y); 	Gdi.Text(cycleThresh.toFixed(1) + '°', x + 116, y, 'Right')
+	Gdi.Text('Threshold:', x, y); 	Gdi.Text(cycleThresh.toFixed(1) + '°', x + 112, y, 'Right')
 	y += bh
 	Gdi.Text('Fan Delay:', x, y); Gdi.Text(secsToTime(fanDelay) , x + 56, y)
 	y += bh
@@ -374,6 +369,7 @@ function getLogs()
 			return;
 		res = ReadVar( 'result' )
 
+Pm.Echo('log ' + res)
 		JsonObj = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 			res.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + res + ')')
 		LogHVAC( JsonObj.time, JsonObj.mode, JsonObj.secs, JsonObj.t1 / 10, JsonObj.rh1 / 10, JsonObj.t2 / 10, JsonObj.rh2 / 10 )
@@ -444,8 +440,8 @@ function ReadVar(varName)
 		xhr.responseText.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + xhr.responseText + ')')
 
 	xhr = null
-//	Pm.Echo( 'Var = ' + JsonObj.result )
-//	Pm.Echo( 'Length = ' + JsonObj.result.length )
+	Pm.Echo( 'Var = ' + JsonObj.result )
+	Pm.Echo( 'Length = ' + JsonObj.result.length )
 
 	return JsonObj.result
 }
