@@ -29,7 +29,7 @@ function OnClick(x, y) // when window is clicked
 	x = Math.floor( (x - btnX) / btnW)
 	y = Math.floor( (y - btnY) / 19)
 
-	if(y < 0 || x < 0 || y>4 || x >3) return
+	if(y < 0 || x < 0 || y > 10 || x > 3) return
 
 	code = (y*2)+x
 
