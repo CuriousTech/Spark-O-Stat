@@ -171,7 +171,7 @@ Pm.Echo('settings ' + settings)
 		fan = (settings>> 8) & 1
 		eHeatThresh = (settings >> 8) & 0x3F
 		fanDelay = (settings >> 14) & 0xFF
-		cycleThresh = (settings >> 22) & 0xFF
+		cycleThresh = ((settings >> 22) & 0xFF) / 10
 
 		res = ReadVar( 'result' )	// result set by settings call
 
