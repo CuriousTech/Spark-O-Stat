@@ -16,22 +16,24 @@ HVAC::HVAC()
 {
 	m_bSim = true;                  // Note: Simulation only
 
-	m_EE.fanPostDelay = 90;         // 90 seconds default
+	m_EE.fanPostDelay = 90;         // 90 seconds after compressor stops
 	m_EE.filterHours = 0;
-	m_EE.cycleMin = 60;             // 60 seconds
-	m_EE.cycleMax = 60 * 10;        // 10 minutes
-	m_EE.idleMin = 60;              // 60 seconds
-	m_EE.cycleThresh = 10;          // 1.0
-	m_EE.coolTemp[1] = 810;         // 81.0
-	m_EE.coolTemp[0] = 790;
+	m_EE.cycleMin = 60;             // 60 seconds minimum for a cycle
+	m_EE.cycleMax = 60 * 15;        // 15 minutes maximun for a cycle
+	m_EE.idleMin = 60 * 4;          // 4 minutes minimum between cycles
+	m_EE.cycleThresh = 15;          // 1.5 degree cycle range
+	m_EE.coolTemp[1] = 810;         // 81.0 default temps
+	m_EE.coolTemp[0] = 790;         // 79.0
 	m_EE.heatTemp[1] = 740;         // 74.0
-	m_EE.heatTemp[0] = 700;
+	m_EE.heatTemp[0] = 700;         // 70.0
     m_EE.eHeatThresh = 30;          // Setting this low (30 deg) for now
     m_EE.id = 0xAA55;               // EE value for validity check or struct size changes
 
     memset(m_fcData, -1, sizeof(m_fcData)); // invalidate forecast
 
-    m_fcPeaks[0].h = -50;       // set as invalid
+//    m_fcPeaks[0].h = -50;           // set as invalid
+
+    m_outMin[0] = -50;           // set as invalid
 
 	pinMode(P_FAN, OUTPUT);
 	pinMode(P_COOL, OUTPUT);
@@ -285,9 +287,7 @@ bool HVAC::preCalcCycle(int8_t mode)
 
 void HVAC::calcTargetTemp(int8_t mode)
 {
-//  int16_t futDiff = m_fcData[1].t - m_outTemp;    // difference between now and up to 3 hours ahead
-//  bool bIncreasing = futDiff > 0;
-
+/*
     Serial.println(Time.timeStr());
     Serial.print("Peaks ");
     Serial.print(m_fcPeaks[0].t);
@@ -330,67 +330,53 @@ void HVAC::calcTargetTemp(int8_t mode)
         m += (h - m_fcPeaks[0].h) * 60; // offset into first peak
     else
         m = 0;
+*/
+
+    int8_t L = m_outMin[1];
+    int8_t H = m_outMax[1];
+
+    if(m_outMin[0] != -50)  // Use longer range if available
+    {
+        L = min(m_outMin[0], m_outMin[1]);
+        H = max(m_outMax[0], m_outMax[1]);
+    }
 
     switch(mode)
     {
         case Mode_Cool:
-            if( m_outTemp < m_outMin * 10 )    // Todo: Fix the peak error
+            if( m_outTemp < L * 10 )    // Todo: Fix the peak error
             {
                 Serial.println("Error: outTemp range low");
                 m_targetTemp = m_EE.coolTemp[0];
             }
-            else if( m_outTemp > m_outMax * 10 )
+            else if( m_outTemp > H * 10 )
             {
                 Serial.println("Error: outTemp range high");
                 m_targetTemp = m_EE.coolTemp[1];
             }else
             {
-            	m_targetTemp  = scaleRange( m_EE.coolTemp[0], m_EE.coolTemp[1]);
+                m_targetTemp  = (m_outTemp-(L*10)) * (m_EE.coolTemp[1]-m_EE.coolTemp[0]) / ((H*10)-(L*10)) + m_EE.coolTemp[0];
             }
             break;
         case Mode_Heat:
-            if( m_outTemp < m_outMin * 10 )
+            if( m_outTemp < L * 10 )
             {
                 Serial.println("Error: outTemp range low");
                 m_targetTemp = m_EE.heatTemp[0];
             }
-            else if( m_outTemp > m_outMax * 10 )
+            else if( m_outTemp > H * 10 )
             {
                 Serial.println("Error: outTemp range high");
                 m_targetTemp = m_EE.heatTemp[1];
             }else
             {
-            	m_targetTemp  = scaleRange( m_EE.heatTemp[0], m_EE.heatTemp[1]);
+                m_targetTemp  = (m_outTemp-(L*10)) * (m_EE.heatTemp[1]-m_EE.heatTemp[0]) / ((H*10)-(L*10)) + m_EE.heatTemp[0];
             }
             break;
     }
 
-    Serial.print("Range LH=");
-    Serial.print(bLowHigh);
-    Serial.print(" hrs=");
-    Serial.print(hrs);
     Serial.print(" target=");
     Serial.println(m_targetTemp);
-}
-
-// scale target temp of inside range to current out temp of outside range
-int HVAC::scaleRange(uint16_t inL, uint16_t inH)
-{
-    if(m_outTemp > m_outMax * 10)  return inH;
-    if(m_outTemp < m_outMin * 10)  return inL;
-
-        Serial.print("scale ");
-        Serial.print(inL);
-        Serial.print(" ");
-        Serial.print(inH);
-        Serial.print(" ");
-        Serial.print(m_outMin);
-        Serial.print(" ");
-        Serial.print(m_outMax);
-        Serial.print(" ");
-        Serial.println(m_outTemp);
-
-    return (m_outTemp-(m_outMin*10)) * (inH-inL) / ((m_outMax*10)-(m_outMin*10)) + inL;
 }
 
 // Analyze temp change over a cycle and log it
@@ -572,9 +558,19 @@ void HVAC::updateOutdoorTemp(int16_t outTemp)
 // Update min/max for next 24 hrs
 void HVAC::updatePeaks(int8_t min, int8_t max)
 {
-    m_outMin = min;
-    m_outMax = max;
+    if(m_outMin[0] != -50)      // preserve peaks longer
+    {
+        if(m_outMax[0] != m_outMax[1])
+            m_outMax[0] = m_outMax[1];
+        if(m_outMin[0] != m_outMin[1])
+            m_outMin[0] = m_outMin[1];
+    }
 
+    m_outMin[1] = min;
+    m_outMax[1] = max;
+
+
+/*
     Forecast fcL, fcH, fcTemp;
     fcL.t = 126;
     fcH.t = -50;
@@ -613,6 +609,7 @@ void HVAC::updatePeaks(int8_t min, int8_t max)
         if(m_fcPeaks[0].h > Time.hour()) // fix peak when midnight rolls
             m_fcPeaks[0].h -= 24;
     }
+*/
 }
 
 void HVAC::resetFilter()
