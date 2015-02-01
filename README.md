@@ -7,7 +7,7 @@ This is my first GitHib project, and the idea is simple.  It's opensource and fl
 
 A periodic screenshot of data collection: (currently the simulation running in conjunction with a real thermostat)
 
-![graph](http://www.curioustech.net/images/Screenshot 2015-01-30 19.41.56.png)
+![graph](http://www.curioustech.net/images/hvac_history.png)
 
 
 More info at http://www.curioustech.net/curiousprojects.html
