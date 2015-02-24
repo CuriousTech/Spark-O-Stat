@@ -24,7 +24,7 @@
 
 //#define T_CAL     // switch to touchscreen calibration mode (draws hits and 4 temp buttons are calibration values adjusted by thumbwheel)
 
-#define DHT_TEMP_ADJUST (-80)  // Adjust indoor temp by -1.0 degress
+#define DHT_TEMP_ADJUST (-70)  // Adjust indoor temp by -7.0 degress
 #define ONE_DAY_MILLIS (24 * 60 * 60 * 1000)
 unsigned long lastSync;
 
@@ -82,10 +82,11 @@ void displayTime()
     char szTime[16];
     static char lastMin = -1;
 
-    sprintf(szTime, "%s %2d:%02d:%02d %cM", _days_short[Time.weekday()-1], Time.hourFormat12(), Time.minute(), Time.second(), Time.isAM() ? 'A':'P');
+    sprintf(szTime, "%s %2d:%02d:%02d %cM",
+    	_days_short[Time.weekday()-1], Time.hourFormat12(), Time.minute(), Time.second(), Time.isAM() ? 'A':'P');
 
-	tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-	tft.setTextSize(2);
+    tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
+    tft.setTextSize(2);
 
     if(lastMin == szTime[11]) // draw just seconds
     {
@@ -98,7 +99,7 @@ void displayTime()
     lastMin = szTime[11];
     if(szTime[4] == '0') szTime[4] = ' ';
 	tft.setCursor(38, 0);
-	tft.println(szTime);
+    tft.println(szTime);
 }
 
 //---------------------------
@@ -351,13 +352,13 @@ void drawForecast()
 	for(i = 0; i < 18; i++)
 	{
 		int y1 = Fc_Bottom - 1 - (hvac.m_fcData[i].t - min) * (Fc_Bottom-Fc_Top-2) / (max-min);
-        int x1 = Fc_Left + (hvac.m_fcData[i].h - h0) * (Fc_Right-Fc_Left) / pts;
+		int x1 = Fc_Left + (hvac.m_fcData[i].h - h0) * (Fc_Right-Fc_Left) / pts;
 		tft.drawLine(x2, y2, x1, y1, ILI9341_RED);
 		x2 = x1;
 		y2 = y1;
 	}
 
-    displayOutTemp();
+	displayOutTemp();
 }
 
 //----------------
@@ -539,6 +540,7 @@ void drawButton(int8_t btn, bool bDown, bool bFast) // draw a button with presse
             bg = bDown ? ILI9341_RED:ILI9341_BLUE;
             break;
         case 11: // Notifications
+            pszText = "               ";
             for(i = 0; i < 8; i++)
             {
                 if(hvac.m_pszNote[i])   // find one
@@ -839,7 +841,7 @@ void UpdateEE()  // check for any changes that haven't been saved
 
 void ReadEE()   // read EEPROM on startup
 {
-    if( EEPROM.read( sizeof(EEConfig)-1 ) != 0x55) // uninitialized
+    if( EEPROM.read( sizeof(EEConfig)-1 ) != 0xAA) // uninitialized
         return;
 
     uint8_t *p = (uint8_t *)&hvac.m_EE;
