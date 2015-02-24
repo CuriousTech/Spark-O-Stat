@@ -29,14 +29,17 @@ typedef struct EEConfig_
 {
 	uint16_t coolTemp[2];	   	// cool to temp *10 low/high
 	uint16_t heatTemp[2];	   	// heat to temp *10 low/high
-	int16_t cycleThresh;		// temp range for cycle *10
-	uint8_t	Mode;				// Off, Cool, Heat, Auto
-	uint8_t  eHeatThresh;       // degree threshold to switch to gas
+	int16_t  cycleThresh;		// temp range for cycle *10
+	uint8_t	 Mode;			// Off, Cool, Heat, Auto
+	uint8_t  eHeatThresh		// degree threshold to switch to gas
 	uint16_t cycleMin;	    	// min time to run
 	uint16_t cycleMax;	    	// max time to run
-	uint16_t idleMin;			// min time to not run
+	uint16_t idleMin;		// min time to not run
 	uint16_t filterHours;		// resettable hours run timer (200 hours is standard change interval)
 	uint16_t fanPostDelay;    	// delay to run auto fan after heat/cool stops
+	uint16_t overrideTime		// time used for an override
+	uint8_t  heatMode;		// heating mode (gas, electric)
+	uint8_t  res;			//
 	uint16_t id;
 } EEConfig;
 
@@ -47,7 +50,7 @@ public:
 	void	service(void);			// call once per second
 	bool    getRunning(void);       // return running
 	int8_t  getMode(void);          // actual mode
-	uint8_t  getHeatMode(void);      // heat mode
+	uint8_t getHeatMode(void);      // heat mode
 	int8_t  getAutoMode(void);      // get current auto heat/cool mode
 	int8_t  getSetMode(void);       // get last requested mode
 	void	setMode(int8_t mode);	// request new mode; see enum Mode
@@ -69,7 +72,7 @@ public:
 	void    clearNotification(int n);
 
 	EEConfig m_EE;
-	char    m_szResult[188];
+	char    m_szResult[200];
 	Forecast m_fcData[18];
 	int16_t m_outTemp;          // adjusted current temp *10
 	uint16_t m_targetTemp;      // end temp for cycle
@@ -87,8 +90,6 @@ private:
 	bool	m_bFanMode;			// Auto=false, On=true
 	int8_t	m_AutoMode;			// cool, heat
 	int8_t	m_setMode;			// new mode request
-	int8_t	m_heatMode;			// heating mode (gas, electric)
-	int8_t  m_eHeatThresh;      // degree threshold to switch to gas
 	bool	m_bRunning;			// is operating
 	bool	m_bFanRunning;		// when fan is running
 	bool	m_bStart;			// signal to start
@@ -100,6 +101,7 @@ private:
 	uint16_t m_cycleTimer;		// time HVAC has been running
 	uint16_t m_fanPostTimer;	// timer for delay
 	uint16_t m_idleTimer;		// time not running
+	int16_t m_overrideTimer;	// countdown for override in seconds
 	int16_t	m_inTemp;			// current indoor temperature *10
 	int16_t m_rh;
 	int16_t m_startingTemp;		// temp at start of cycle *10
