@@ -9,5 +9,9 @@ A periodic screenshot of data collection: (currently the simulation running in c
 
 ![graph](http://www.curioustech.net/images/hvac_history.png)
 
+Here's a test in auto mode during a wide swing in temperature.  Working as well as expected.  A 1-2 hour delayed shift might actually be more efficient.
+
+![graph2](http://www.curioustech.net/images/hvac_history2.png)
+
 
 More info at http://www.curioustech.net/curiousprojects.html
