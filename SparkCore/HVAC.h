@@ -99,7 +99,7 @@ private:
 	bool	m_bStop;		// signal to stop
 	bool	m_bSim;			// simulating
 	uint16_t m_runTotal;		// time HVAC has been running total since reset
-	uint16_t m_tempDiffTotal	// total temp change for total runs (6553.5 deg of change)
+	uint16_t m_tempDiffTotal;	// total temp change for total runs (6553.5 deg of change)
 	uint16_t m_fanOnTimer;		// time fan is running
 	uint16_t m_cycleTimer;		// time HVAC has been running
 	uint16_t m_fanPostTimer;	// timer for delay
