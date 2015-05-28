@@ -1,6 +1,6 @@
 //  Sparkostat script running on PngMagic  http://www.curioustech.net/pngmagic.html
 //
-	spark = 'https://api.spark.io/v1/devices/'
+	spark = 'https://api.particle.io/v1/devices/'
 	deviceID = 'xxxxxxxxxxxxxxx'
 	token = 'xxxxxxxxxxxxxxxxxxxxxxxx'
 
@@ -8,9 +8,12 @@
 
 	modes = new Array('Off', 'Cool', 'Heat', 'Auto')
 
-	btnX = 128
+	btnX = 120
 	btnY = 45
 	btnW = 40
+
+	if(Reg.overrideTemp == 0)
+		Reg.overrideTemp = 78
 
 	var cnt = (Math.random(100) * 10000).toFixed() // fix for cache
 
@@ -27,46 +30,46 @@ function OnClick(x, y) // when window is clicked
 	Pm.Window( 'SparkIO' )
 
 	x = Math.floor( (x - btnX) / btnW)
-	y = Math.floor( (y - btnY) / 19)
+	y = Math.floor( ((y - btnY) / 19))
 
-	if(y < 0 || x < 0 || y > 10 || x > 3) return
+	if(y < 0 || x < 0 || y>26 || x >3) return
 
 	code = (y*2)+x
 
 	switch(code)
 	{
 		case 0:		// fan
-			fanMode ^= 1; SetVar('fanmode', fanMode);
-			break;
+			fanMode ^= 1; SetVar('fanmode', fanMode)
+			break
 		case 1:		// mode
-			mode = (mode + 1) & 3; SetVar('mode', mode);
-			break;
+			mode = (mode + 1) & 3; SetVar('mode', mode)
+			break
 		case 2:		// mode
-			heatMode ^= 1; SetVar('heatMode', heatMode);
-			break;
+			heatMode = (heatMode+1) % 3; SetVar('heatMode', heatMode)
+			break
 		case 4:		// cool H up
-			setTemp(1, coolTempH + 0.1, 1); SetVar('cooltemph', (coolTempH * 10).toFixed());
-			break;
+			setTemp(1, coolTempH + 0.1, 1); SetVar('cooltemph', (coolTempH * 10).toFixed())
+			break
 		case 5:		// cool H dn
-			setTemp(1, coolTempH - 0.1, 1); SetVar('cooltemph', (coolTempH * 10).toFixed());
-			break;
+			setTemp(1, coolTempH - 0.1, 1); SetVar('cooltemph', (coolTempH * 10).toFixed())
+			break
 		case 6:		// cool L up
-			setTemp(1, coolTempL + 0.1, 0); SetVar('cooltempl', (coolTempL * 10).toFixed());
-			break;
+			setTemp(1, coolTempL + 0.1, 0); SetVar('cooltempl', (coolTempL * 10).toFixed())
+			break
 		case 7:		// cool L dn
-			setTemp(1, coolTempL - 0.1, 0); SetVar('cooltempl', (coolTempL * 10).toFixed());
-			break;
+			setTemp(1, coolTempL - 0.1, 0); SetVar('cooltempl', (coolTempL * 10).toFixed())
+			break
 		case 8:		// heat H up
-			setTemp(2, heatTempH + 0.1, 1); SetVar('heattemph', (heatTempH * 10).toFixed());
-			break;
+			setTemp(2, heatTempH + 0.1, 1); SetVar('heattemph', (heatTempH * 10).toFixed())
+			break
 		case 9:		// heat H dn
-			setTemp(2, heatTempH - 0.1, 1); SetVar('heattemph', (heatTempH * 10).toFixed());
-			break;
+			setTemp(2, heatTempH - 0.1, 1); SetVar('heattemph', (heatTempH * 10).toFixed())
+			break
 		case 10:		// heat L up
-			setTemp(2, heatTempL + 0.1, 0); SetVar('heattempl', (heatTempL * 10).toFixed());
-			break;
+			setTemp(2, heatTempL + 0.1, 0); SetVar('heattempl', (heatTempL * 10).toFixed())
+			break
 		case 11:		// heat L dn
-			setTemp(2, heatTempL - 0.1, 0); SetVar('heattempl', (heatTempL * 10).toFixed());
+			setTemp(2, heatTempL - 0.1, 0); SetVar('heattempl', (heatTempL * 10).toFixed())
 			break
 		case 12:		// thresh up
 			if(cycleThresh < 6.3){ cycleThresh += 0.1; SetVar('cyclethresh', (cycleThresh * 10).toFixed()); }
@@ -85,19 +88,31 @@ function OnClick(x, y) // when window is clicked
 			break
 		case 17:		// idleMin dn
 			idleMin--; SetVar('idlemin', idleMin)
-			break;
+			break
 		case 18:		// cycleMin up
 			cycleMin++; SetVar('cyclemin', cycleMin)
-			break;
+			break
 		case 19:		// cycleMin dn
 			cycleMin--; SetVar('cyclemin', cycleMin)
-			break;
+			break
 		case 20:		// cycleMax up
-			cycleMax++; SetVar('cyclemax', cycleMax)
-			break;
+			cycleMax+=60; SetVar('cyclemax', cycleMax)
+			break
 		case 21:		// cycleMax dn
 			cycleMax--; SetVar('cyclemax', cycleMax)
-			break;
+			break
+		case 22:		// override time up
+			overrideTime+=60; SetVar('overridetime', overrideTime)
+			break
+		case 23:		// override time dn
+			overrideTime-=10; SetVar('overridetime', overrideTime)
+			break	
+		case 24:		// override temp up
+			Reg.overrideTemp += 0.1
+			break
+		case 25:		// override temp dn
+			Reg.overrideTemp -= 0.1
+			break
 	}
 
 	Draw()
@@ -108,35 +123,35 @@ function setTemp( mode, Temp, hl)
 {
 	if(mode == 3) // auto
 	{
-		mode = autoMode;
+		mode = autoMode
 	}
 
 	switch(mode)
 	{
 		case 1:
 			if(Temp < 65.0 || Temp > 88.0)    // ensure sane values
-				break;
+				break
 			if(hl)
 			{
-				coolTempH = Temp;
-				coolTempL = Math.min(coolTempH, coolTempL);     // don't allow h/l to invert
+				coolTempH = Temp
+				coolTempL = Math.min(coolTempH, coolTempL)     // don't allow h/l to invert
 			}
 			else
 			{
-				coolTempL = Temp;
-				coolTempH = Math.max(coolTempL, coolTempH);
+				coolTempL = Temp
+				coolTempH = Math.max(coolTempL, coolTempH)
 			}
-			save = heatTempH - heatTempL;
-			heatTempH = Math.min(coolTempL - 2, heatTempH); // Keep 2.0 degree differencial for Auto mode
-			heatTempL = heatTempH - save;                      // shift heat low by original diff
-			break;
+			save = heatTempH - heatTempL
+			heatTempH = Math.min(coolTempL - 2, heatTempH) // Keep 2.0 degree differencial for Auto mode
+			heatTempL = heatTempH - save                      // shift heat low by original diff
+			break
 		case 2:
 			if(Temp < 63.0 || Temp > 86.0)    // ensure sane values
-				break;
+				break
 			if(hl)
 			{
-				heatTempH = Temp;
-				heatTempL = Math.min(heatTempH, heatTempL);
+				heatTempH = Temp
+				heatTempL = Math.min(heatTempH, heatTempL)
 			}
 			else
 			{
@@ -161,21 +176,21 @@ function OnTimer()
 			Pm.Quit()
 		}
 
-Pm.Echo('settings ' + settings)
+//Pm.Echo('settings ' + settings)
 
 		mode = settings & 3
 		autoMode = (settings >> 2) & 3
-		heatMode = (settings >> 4) & 1
-		fanMode = (settings >> 5) & 1
-		running = (settings>> 6) & 1
+		heatMode = (settings >> 4) & 3
+		fanMode = (settings >> 6) & 1
+		running = (settings>> 7) & 1
 		fan = (settings>> 8) & 1
-		eHeatThresh = (settings >> 8) & 0x3F
-		fanDelay = (settings >> 14) & 0xFF
-		cycleThresh = ((settings >> 22) & 0xFF) / 10
+		eHeatThresh = (settings >> 10) & 0x3F
+		fanDelay = (settings >> 16) & 0xFF
+		cycleThresh = ((settings >> 24) & 0xFF) / 10
 
 		res = ReadVar( 'result' )	// result set by settings call
 
-Pm.Echo('settings ' + res)
+//Pm.Echo('settings ' + res)
 		Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 			res.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + res + ')')
 
@@ -196,6 +211,7 @@ Pm.Echo('settings ' + res)
 		fanTimer = +Json.ft
 		runTotal = +Json.rt
 		tempDiffTotal = +Json.td
+		overrideTime = +Json.ov
 
 		Draw()
 
@@ -226,7 +242,7 @@ function Draw()
 	Pm.Window('SparkIO')
 
 	Gdi.Width = 208 // resize drawing area
-	Gdi.Height = 280
+	Gdi.Height = 320
 
 	Gdi.Clear(0) // transaprent
 
@@ -302,14 +318,19 @@ function Draw()
 	Gdi.Text('cycle Min:', x, y); 	Gdi.Text(secsToTime(cycleMin), x + 56, y)
 	y += bh
 	Gdi.Text('cycle Max:', x, y); 	Gdi.Text(secsToTime(cycleMax) , x + 56, y)
+	y += bh
+	Gdi.Text('ovr Time:', x, y); 	Gdi.Text(secsToTime(overrideTime) , x + 56, y)
+	y += bh
+	Gdi.Text('ovr Temp:', x, y);  Gdi.Text(Reg.overrideTemp.toFixed(1) + '°' , x + 112, y, 'Right')
 
 	y += bh+2
 	Gdi.Text('Cyc:', x, y); 	Gdi.Text(secsToTime(cycleTimer) , x + 30, y)
 	Gdi.Text('Tot:', x+90, y); 	Gdi.Text(secsToTime(runTotal) , x + 120, y)
 
+	heatModes = Array('HP', 'NG', 'Auto')
 	buttons = Array(fanMode ? 'On' : 'Auto', modes[mode],
-		heatMode ? 'NG' : 'HP', '  ',
-		'+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-' )
+		heatModes[heatMode], 'Ovrd',
+		'+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-', '+', '-' )
 
 	for (n = 0, row = 0; row < buttons.length / 2; row++)
 	{
@@ -400,7 +421,6 @@ function LogTemps( inTemp, targetTemp )
 	fso = null
 }
 
-
 function testcb()
 {
 }
@@ -411,7 +431,7 @@ function TestSpark()	// async call for testing net connection so it doesn't free
 	xhr.open('POST', spark + deviceID + '/getvar?access_token=' + token, false)
 	xhr.onreadystatechange = testcb
 	xhr.setRequestHeader('content-type', 'application/x-www-form-urlencoded')
-	Pm.SetTimer(2*60*1000)
+	Pm.SetTimer(5*60*1000)
 	xhr.send( 'params=settings' )
 
 	var JsonObj = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
@@ -430,6 +450,7 @@ function ReadVar(varName)
 {
 	xhr = new ActiveXObject( 'Microsoft.XMLHTTP' )
 	xhr.open('GET', spark + deviceID + '/' + varName + '?access_token=' + token + '&r=' + cnt, false)
+	xhr.onreadystatechange = testcb
 	xhr.setRequestHeader('content-type', 'application/x-www-form-urlencoded')
 	xhr.send()
 
@@ -450,6 +471,7 @@ function GetVar(name)
 {
 	xhr = new ActiveXObject( 'Microsoft.XMLHTTP' )
 	xhr.open('POST', spark + deviceID + '/getvar?access_token=' + token, false)
+	xhr.onreadystatechange = testcb
 	xhr.setRequestHeader('content-type', 'application/x-www-form-urlencoded')
 	xhr.send( 'params=' + name )
 
@@ -468,6 +490,7 @@ function SetVar(v,  val)
 {
 	xhr = new ActiveXObject( 'Microsoft.XMLHTTP' )
 	xhr.open('POST', spark + deviceID + '/setvar?access_token=' + token, false)
+	xhr.onreadystatechange = testcb
 	xhr.setRequestHeader('content-type', 'application/x-www-form-urlencoded')
 	xhr.send( 'params=' + v + ',' + val )
 
