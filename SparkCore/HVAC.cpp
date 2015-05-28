@@ -18,7 +18,7 @@ HVAC::HVAC()
 
 	m_EE.fanPostDelay = 90; 	// 90 seconds after compressor stops
 	m_EE.filterHours = 0;
-	m_EE.cycleMin = 60;		// 60 seconds minimum for a cycle
+	m_EE.cycleMin = 60;		    // 60 seconds minimum for a cycle
 	m_EE.cycleMax = 60*15;		// 15 minutes maximun for a cycle
 	m_EE.idleMin = 60*5;		// 5 minutes minimum between cycles
 	m_EE.cycleThresh = 15;		// 1.5 degree cycle range
@@ -28,7 +28,7 @@ HVAC::HVAC()
 	m_EE.heatTemp[0] = 680;		// 70.0
 	m_EE.eHeatThresh = 30;		// Setting this low (30 deg) for now
 	m_EE.overrideTime = 10 * 60;	// setting for override
-	m_EE.id = 0xAA55;		// EE value for validity check or struct size changes
+	m_EE.id = 0xAA55;		    // EE value for validity check or struct size changes
 
 	memset(m_fcData, -1, sizeof(m_fcData)); // invalidate forecast
 
@@ -113,20 +113,23 @@ void HVAC::service()
 		m_idleTimer++;		        		// Time since stopped
 	}
 
-	if(m_setMode != m_EE.Mode)		    	// requested HVAC mode change
+	if(m_setMode != m_EE.Mode || m_setHeat != m_EE.heatMode)   	// requested HVAC mode change
 	{
 		if(m_bRunning)                      // cycleTimer is already > 20s here
 			m_bStop = true;
 		if(m_idleTimer >= 5)
 		{
-			m_EE.Mode = m_setMode;	    	// User may be cycling through modes (give 5s)
+            m_EE.heatMode = m_setHeat;
+			m_EE.Mode = m_setMode;	        // User may be cycling through modes (give 5s)
 			calcTargetTemp(m_EE.Mode);
 		}
 	}
+
+	int8_t h = (m_EE.heatMode == 2) ? m_AutoHeat : m_EE.heatMode;
+
 	if(m_bStart && !m_bRunning)	            // Start signal occurred
 	{
 		int8_t mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode;
-
 		m_bStart = false;
 
 		switch(mode)
@@ -136,7 +139,7 @@ void HVAC::service()
 				digitalWrite(P_COOL, HIGH);
 				break;
 			case Mode_Heat:
-				if(m_EE.heatMode)  // gas
+				if(h)  // gas
 				{
 					fanSwitch(false);
 					digitalWrite(P_HEAT, HIGH);
@@ -172,7 +175,7 @@ void HVAC::service()
 				fanSwitch(false);
 		}
 		
-		if(m_EE.heatMode)                  // count run time as fan time in winter
+		if(h)                  // count run time as fan time in winter
 		{
 			m_fanOnTimer += 60;         // furnace post fan is 60 seconds
 			fanTimeAccum();
@@ -271,10 +274,13 @@ bool HVAC::preCalcCycle(int8_t mode)
 				Serial.println("Auto heat");
 				m_AutoMode = Mode_Heat;
 				calcTargetTemp(Mode_Heat);
-				if(m_inTemp < m_outTemp - (m_EE.eHeatThresh * 10)) 	// Use gas when efficiency too low for pump
-					m_EE.heatMode = 1;				// Todo: Try to keep user prefered mode
-				else
-					m_EE.heatMode = 0;
+                if(m_EE.heatMode == 2)
+                {
+    				if(m_inTemp < m_outTemp - (m_EE.eHeatThresh * 10)) 	// Use gas when efficiency too low for pump
+    					m_AutoHeat = 1;
+    				else
+    					m_AutoHeat = 0;
+                }
 				bRet = true;
 			}
 			break;
@@ -454,7 +460,7 @@ int8_t HVAC::getMode()
 
 void HVAC::setHeatMode(uint8_t mode)
 {
-	m_EE.heatMode = mode;
+	m_setHeat = mode % 3;
 }
 
 uint8_t HVAC::getHeatMode()
@@ -697,13 +703,13 @@ int HVAC::getVar(String s)
 		case 1:    // settings
 			r = m_EE.Mode;			    	// 2
 			r |= (m_AutoMode << 2);		    // 2
-			r |= (m_EE.heatMode << 3);	    // 1
-			r |= (m_bFanMode ? 0x20:0); 	// 1
-			r |= (m_bRunning ? 0x40:0); 	// 1
-			r |= (m_bFanRunning ? 0x80:0);  // 1
-			r |= m_EE.eHeatThresh << 8;     // 6 (63 max)
-			r |= m_EE.fanPostDelay << 14;	// 8 (255)
-			r |= m_EE.cycleThresh << 22; 	// 8
+			r |= (m_EE.heatMode << 4);	    // 2
+			r |= (m_bFanMode ? 0x40:0); 	// 1
+			r |= (m_bRunning ? 0x80:0); 	// 1
+			r |= (m_bFanRunning ? 0x100:0);  // 1
+			r |= m_EE.eHeatThresh << 10;    // 6 (63 max)
+			r |= m_EE.fanPostDelay << 16;	// 8 (255)
+			r |= m_EE.cycleThresh << 24; 	// 8
 			sprintf(m_szResult, "{\"c0\":%d,\"c1\":%d,\"h0\":%d,\"h1\":%d,\"it\":%d,\"tt\":%d,\"im\":%d,\"cn\":%d,\"cx\":%d,\"fh\":%d,\"ot\":%d,\"ol\":%d,\"oh\":%d,\"ct\":%d,\"ft\":%d,\"rt\":%d,\"td\":%d,\"ov\":%d}",
 			// 148-180
 			m_EE.coolTemp[0], m_EE.coolTemp[1], m_EE.heatTemp[0], m_EE.heatTemp[1],
@@ -776,7 +782,7 @@ int HVAC::setVar(String s)
 		case 1:     // mode
 			setMode( val );
 			return 9;
-		case 2:     // heatmode
+		case 2:     // heatmode  Todo: Update display (delayed change)
 			setHeatMode( val );
 			return 10;
 		case 3:     // resettotal
