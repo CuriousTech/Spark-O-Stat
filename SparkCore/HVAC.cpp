@@ -12,10 +12,10 @@
 #include "HVAC.h"
 #include "math.h"
 
+//#define SIM
+
 HVAC::HVAC()
 {
-	m_bSim = true;			// Note: Simulation only
-
 	m_EE.fanPostDelay = 90; 	// 90 seconds after compressor stops
 	m_EE.filterHours = 0;
 	m_EE.cycleMin = 60;		    // 60 seconds minimum for a cycle
@@ -119,7 +119,7 @@ void HVAC::service()
 			m_bStop = true;
 		if(m_idleTimer >= 5)
 		{
-            m_EE.heatMode = m_setHeat;
+			m_EE.heatMode = m_setHeat;
 			m_EE.Mode = m_setMode;	        // User may be cycling through modes (give 5s)
 			calcTargetTemp(m_EE.Mode);
 		}
@@ -136,6 +136,11 @@ void HVAC::service()
 		{
 			case Mode_Cool:
 				fanSwitch(true);
+				if(digitalRead(P_REV) != HIGH)
+    				{
+					digitalWrite(P_REV, HIGH);  // set to heatpump to cool (if heats, reverse this)
+					delay(5000);                //    if no heatpump, remove
+				}
 				digitalWrite(P_COOL, HIGH);
 				break;
 			case Mode_Heat:
@@ -147,7 +152,11 @@ void HVAC::service()
 				else
 				{
 					fanSwitch(true);
-					digitalWrite(P_REV, HIGH);
+					if(digitalRead(P_REV) != LOW)  // set to heatpump to heat (if heats, reverse this)
+					{
+						digitalWrite(P_REV, LOW);
+						delay(5000);
+					}
 					digitalWrite(P_COOL, HIGH);
 				}
 				break;
@@ -163,7 +172,6 @@ void HVAC::service()
 	if(m_bStop && m_bRunning)	        		// Stop signal occurred
 	{
 		m_bStop = false;
-		digitalWrite(P_REV, LOW);
 		digitalWrite(P_COOL, LOW);
 		digitalWrite(P_HEAT, LOW);
 
@@ -186,9 +194,9 @@ void HVAC::service()
 		analyze();
 	}
 
-	if(m_bSim)
+#ifdef SIM
 		simulator();
-
+#endif
 	tempCheck();
 }
 
@@ -274,13 +282,13 @@ bool HVAC::preCalcCycle(int8_t mode)
 				Serial.println("Auto heat");
 				m_AutoMode = Mode_Heat;
 				calcTargetTemp(Mode_Heat);
-                if(m_EE.heatMode == 2)
-                {
-    				if(m_inTemp < m_outTemp - (m_EE.eHeatThresh * 10)) 	// Use gas when efficiency too low for pump
-    					m_AutoHeat = 1;
-    				else
-    					m_AutoHeat = 0;
-                }
+				if(m_EE.heatMode == 2)
+				{
+					if(m_inTemp < m_outTemp - (m_EE.eHeatThresh * 10)) 	// Use gas when efficiency too low for pump
+						m_AutoHeat = 1;
+					else
+						m_AutoHeat = 0;
+				}
 				bRet = true;
 			}
 			break;
@@ -298,8 +306,8 @@ bool HVAC::preCalcCycle(int8_t mode)
 			Serial.print(", deg to stop=");
 			Serial.println( (float)(m_inTemp - m_targetTemp) / 10 );
 		}
-		else                // Heating is required at around 25 under indoor    (testing)
-		{                   // Note: If outdoor temp climbs from 30 to 50, indoor temp doesn't drop from 70.
+		else	// Heating is required at around 25 under indoor    (testing)
+		{	// Note: If outdoor temp climbs from 30 to 50, indoor temp doesn't drop from 70.
 			Serial.print(" Heat i/o diff=");
 			Serial.print( (float)diff / 10 );
 			Serial.print(", deg to stop=");
@@ -312,54 +320,12 @@ bool HVAC::preCalcCycle(int8_t mode)
 
 void HVAC::calcTargetTemp(int8_t mode)
 {
-/*
-    Serial.println(Time.timeStr());
-    Serial.print("Peaks ");
-    Serial.print(m_fcPeaks[0].t);
-    Serial.print(" at ");
-    Serial.print(m_fcPeaks[0].h);
-    Serial.print(", ");
-    Serial.print(m_fcPeaks[1].t);
-    Serial.print(" at ");
-    Serial.print(m_fcPeaks[1].h);
-    Serial.print(", ");
-    Serial.print(m_fcPeaks[2].t);
-    Serial.print(" at ");
-    Serial.println(m_fcPeaks[2].h);
-
-    if(m_fcPeaks[0].h == -50)   // not initialized yet
-    {
-        Serial.println("Not init");
-        return;
-    }
-    
-    int8_t h = Time.hour();
-
-    if(h >= m_fcPeaks[1].h)        // Shift over
-    {
-        Serial.println("Time shift");
-        m_fcPeaks[0] = m_fcPeaks[1];
-        m_fcPeaks[1] = m_fcPeaks[2];
-        m_fcPeaks[2].h = m_fcPeaks[2].t = -1;       // invalidate
-        if(m_fcPeaks[0].h > 24)                     // adjust time 1 day
-            m_fcPeaks[0].h -= 24;
-    }
-
-    bool bLowHigh = (m_fcPeaks[0].t < m_fcPeaks[1].t);   // true = low->high, false = high->low
-
-    int8_t hrs = m_fcPeaks[1].h - m_fcPeaks[0].h;
-
-    int m = Time.minute();
-
-    if(m_fcPeaks[0].h <= h)
-        m += (h - m_fcPeaks[0].h) * 60; // offset into first peak
-    else
-        m = 0;
-*/
+	if(digitalRead(P_REV) != (mode == Mode_Cool) )  // set heatpump same as current mode (Note: some models may be reversed)
+		digitalWrite(P_REV, (mode == Mode_Cool) ? HIGH : LOW);
 
 	if(m_overrideTimer)     // don't adjust during overide
-	return;
-	
+		return;
+
 	int16_t L = m_outMin[1];
 	int16_t H = m_outMax[1];
 	
@@ -368,7 +334,7 @@ void HVAC::calcTargetTemp(int8_t mode)
 		L = min(m_outMin[0], L);
 		H = max(m_outMax[0], H);
 	}
-	
+
 	L *= 10;    // shift a decimal place
 	H *= 10;
 
@@ -579,8 +545,10 @@ void HVAC::setTemp(int8_t mode, int16_t Temp, int8_t hl)
 // Update when DHT22 changes
 void HVAC::updateIndoorTemp(int16_t Temp, int16_t rh)
 {
-	if(m_inTemp != 0 && m_bSim)	// get real temp once if simulating
+#ifdef SIM
+	if(m_inTemp != 0)	// get real temp once if simulating
 		return;
+#endif
 	m_inTemp = Temp;
 	m_rh = rh;
 }
@@ -609,47 +577,6 @@ void HVAC::updatePeaks(int8_t min, int8_t max)
 	
 	m_outMin[1] = min;
 	m_outMax[1] = max;
-
-/*
-    Forecast fcL, fcH, fcTemp;
-    fcL.t = 126;
-    fcH.t = -50;
-
-    // Get low/high for next 24 hours  Todo: change to AM/PM fixed peak
-    for(int8_t i = 0; i < 8; i++)  // 8*3 = 24
-    {
-        int8_t t = m_fcData[i].t;
-        if(fcL.t > t)
-            fcL = m_fcData[i];
-        if(fcH.t < t)
-            fcH = m_fcData[i];
-    }
-
-    fcTemp = m_fcPeaks[1];
-
-    m_fcPeaks[1] = (fcL.h < fcH.h) ? fcL : fcH; // time ordered
-    m_fcPeaks[2] = (fcL.h > fcH.h) ? fcL : fcH;
-
-    if(m_fcPeaks[0].h == -50)        // fake the first entry
-    {
-        m_fcPeaks[0].h = Time.hour();
-        m_fcPeaks[0].t = m_fcData[0].t;
-    }
-    else
-    {
-        if( (fcTemp.h+2) <= Time.hour() )   // updates are every 3 hours
-            m_fcPeaks[0] = fcTemp;          // make sure old peak isn't lost
-
-        if(fcTemp.h <= m_fcPeaks[0].h)      // this shouldn't happen
-            m_fcPeaks[0] = fcTemp;
-
-        if(m_fcPeaks[0].h > m_fcPeaks[1].h) // temporary
-            m_fcPeaks[0].h -= 24;
-
-        if(m_fcPeaks[0].h > Time.hour()) // fix peak when midnight rolls
-            m_fcPeaks[0].h -= 24;
-    }
-*/
 }
 
 void HVAC::resetFilter()
@@ -782,7 +709,7 @@ int HVAC::setVar(String s)
 		case 1:     // mode
 			setMode( val );
 			return 9;
-		case 2:     // heatmode  Todo: Update display (delayed change)
+		case 2:     // heatmode
 			setHeatMode( val );
 			return 10;
 		case 3:     // resettotal
@@ -862,6 +789,7 @@ void HVAC::clearNotification(int n)
 		m_pszNote[n] = NULL;
 }
 
+#ifdef SIM
 // Simulate indoor temp changes
 void HVAC::simulator()
 {
@@ -928,3 +856,4 @@ void HVAC::simulator()
 //		Serial.println((float)Chg / 10);
 	}
 }
+#endif
