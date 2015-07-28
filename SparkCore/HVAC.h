@@ -76,6 +76,7 @@ public:
 	char    m_szResult[200];
 	Forecast m_fcData[18];
 	int16_t m_outTemp;          // adjusted current temp *10
+	int16_t	m_inTemp;		    // current adjusted indoor temperature *10
 	uint16_t m_targetTemp;      // end temp for cycle
 	const char *m_pszNote[8];
 
@@ -97,7 +98,6 @@ private:
 	bool	m_bFanRunning;		// when fan is running
 	bool	m_bStart;		// signal to start
 	bool	m_bStop;		// signal to stop
-	bool	m_bSim;			// simulating
 	uint16_t m_runTotal;		// time HVAC has been running total since reset
 	uint16_t m_tempDiffTotal;	// total temp change for total runs (6553.5 deg of change)
 	uint16_t m_fanOnTimer;		// time fan is running
@@ -105,11 +105,9 @@ private:
 	uint16_t m_fanPostTimer;	// timer for delay
 	uint16_t m_idleTimer;		// time not running
 	int16_t m_overrideTimer;	// countdown for override in seconds
-	int16_t	m_inTemp;		// current indoor temperature *10
 	int16_t m_rh;
 	int16_t m_startingTemp;		// temp at start of cycle *10
 	int16_t m_startingRh;		// rh at start of cycle *10
-//	Forecast m_fcPeaks[3]		// min/max
 	int8_t  m_outMin[2], m_outMax[2];
 	Log     m_logs[32];		// 512 bytes
 };
