@@ -23,11 +23,11 @@
 
 	OnTimer()
 
-//	SetVar('notify', 'Test 1')
+//	SetVar('notify', 'Test 1')  // test notification
 
 function OnClick(x, y) // when window is clicked
 {
-	Pm.Window( 'SparkIO' )
+	Pm.Window( 'SparkOstat' )
 
 	x = Math.floor( (x - btnX) / btnW)
 	y = Math.floor( ((y - btnY) / 19))
@@ -46,6 +46,10 @@ function OnClick(x, y) // when window is clicked
 			break
 		case 2:		// mode
 			heatMode = (heatMode+1) % 3; SetVar('heatMode', heatMode)
+			break
+		case 3:		// Override
+			SetVar('override', Reg.overrideTemp * 10)
+			targetTemp = Reg.overrideTemp;
 			break
 		case 4:		// cool H up
 			setTemp(1, coolTempH + 0.1, 1); SetVar('cooltemph', (coolTempH * 10).toFixed())
@@ -200,11 +204,11 @@ function OnTimer()
 		heatTempH = +Json.h1 / 10
 		inTemp = +Json.it / 10
 		targetTemp = +Json.tt / 10
-		idleMin =+ Json.im
+		idleMin = +Json.im
 		cycleMin = +Json.cn
 		cycleMax = +Json.cx
 		filterHours = +Json.fh
-		outTemp = Json.ot / 10
+		outTemp = +Json.ot / 10
 		outFL = +Json.ol
 		outFH = +Json.oh
 		cycleTimer = +Json.ct
@@ -222,8 +226,8 @@ function OnTimer()
 	{
 		res = ReadVar( 'result' )
 
-Pm.Echo(' ' )
-Pm.Echo('log ' + res)
+//Pm.Echo(' ' )
+//Pm.Echo('log ' + res)
 		JsonObj = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 			res.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + res + ')')
 		LogHVAC( JsonObj.time, JsonObj.mode, JsonObj.secs, JsonObj.t1 / 10, JsonObj.rh1 / 10, JsonObj.t2 / 10, JsonObj.rh2 / 10 )
@@ -390,7 +394,7 @@ function getLogs()
 			return;
 		res = ReadVar( 'result' )
 
-Pm.Echo('log ' + res)
+//Pm.Echo('log ' + res)
 		JsonObj = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 			res.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + res + ')')
 		LogHVAC( JsonObj.time, JsonObj.mode, JsonObj.secs, JsonObj.t1 / 10, JsonObj.rh1 / 10, JsonObj.t2 / 10, JsonObj.rh2 / 10 )
@@ -411,6 +415,8 @@ function LogHVAC( uxt, mode, secs, t1, rh1, t2, rh2 )
 
 function LogTemps( inTemp, targetTemp )
 {
+	if(targetTemp == 0)
+		return
 	fso = new ActiveXObject( 'Scripting.FileSystemObject' )
 
 	date = new Date()
@@ -461,8 +467,8 @@ function ReadVar(varName)
 		xhr.responseText.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + xhr.responseText + ')')
 
 	xhr = null
-	Pm.Echo( 'Var = ' + JsonObj.result )
-	Pm.Echo( 'Length = ' + JsonObj.result.length )
+//	Pm.Echo( 'Var = ' + JsonObj.result )
+//	Pm.Echo( 'Length = ' + JsonObj.result.length )
 
 	return JsonObj.result
 }
