@@ -27,7 +27,7 @@
 
 function OnClick(x, y) // when window is clicked
 {
-	Pm.Window( 'SparkOstat' )
+	Pm.Window( 'SparkRemote' )
 
 	x = Math.floor( (x - btnX) / btnW)
 	y = Math.floor( ((y - btnY) / 19))
@@ -82,10 +82,10 @@ function OnClick(x, y) // when window is clicked
 			if(cycleThresh > 0.1){ cycleThresh -= 0.1; SetVar('cyclethresh', (cycleThresh * 10).toFixed()); }
 			break
 		case 14:		// fanDelay up
-			if(fanDelay < 255){ fanDelay++; SetVar('fandelay', fanDelay); }
+			if(fanDelay < 255){ fanDelay += 10; SetVar('fanpostdelay', fanDelay); }
 			break
 		case 15:		// fanDelay dn
-			if(fanDelay > 0){ fanDelay --; SetVar('fandelay', fanDelay); }
+			if(fanDelay > 0){ fanDelay -= 10; SetVar('fanpostdelay', fanDelay); }
 			break
 		case 16:		// idleMin up
 			idleMin++; SetVar('idlemin', idleMin)
@@ -120,6 +120,7 @@ function OnClick(x, y) // when window is clicked
 	}
 
 	Draw()
+	Pm.SetTimer(5*1000) // request update in 5 seconds
 }
 
 // mimic thermostat
@@ -172,7 +173,7 @@ function setTemp( mode, Temp, hl)
 function OnTimer()
 {
 	Pm.Echo()
-	Pm.SetTimer(5*60*1000)
+	Pm.SetTimer(4*60*1000)
 	if(!readingLogs)
 	{	if( !TestSpark() )	// this gets the settings var
 		{
@@ -216,10 +217,11 @@ function OnTimer()
 		runTotal = +Json.rt
 		tempDiffTotal = +Json.td
 		overrideTime = +Json.ov
+		rh = +Json.rh / 10
 
 		Draw()
 
-		LogTemps( inTemp, targetTemp )
+		LogTemps( inTemp, targetTemp, rh )
 	}
 
 	if( GetVar( 'log' ) )
@@ -243,7 +245,7 @@ function OnTimer()
 
 function Draw()
 {
-	Pm.Window('SparkIO')
+	Pm.Window('SparkRemote')
 
 	Gdi.Width = 208 // resize drawing area
 	Gdi.Height = 320
@@ -259,7 +261,7 @@ function Draw()
 	// Title
 	Gdi.Font( 'Courier New', 15, 'BoldItalic')
 	Gdi.Brush( Gdi.Argb(255, 255, 230, 25) )
-	Gdi.Text( 'Spark-O-Stat', 10, 1 )
+	Gdi.Text( 'Spark-O-Stat', 5, 1 )
 
 	Gdi.Brush( Gdi.Argb(255, 255, 0, 0) )
 	Gdi.Text( 'X', Gdi.Width-17, 1 )
@@ -269,22 +271,16 @@ function Draw()
 	Gdi.Brush( Gdi.Argb(255, 255, 255, 255) )
 
 	date = new Date()
-
-	m = date.getMinutes()
-	if(m<10) m = '0'+m
-	Gdi.Text( date.getHours() + ':'+m, Gdi.Width-54, 1 )
+	Gdi.Text( date.toLocaleTimeString(), Gdi.Width-84, 2 )
 
 	x = 5
 	y = 22
 
-	Gdi.Text('In:', x, y)
-	Gdi.Text(inTemp + '°', x + 20, y)
+	Gdi.Text('In: ' + inTemp + '°', x, y)
+	Gdi.Text( '>' + targetTemp + '°  ' + rh + '%', x + 54, y)
 
-	Gdi.Text('Trg:', x + 65, y)
-	Gdi.Text(targetTemp + '°', x + 93, y)
-
-	Gdi.Text('Out:', x + 134, y)
-	Gdi.Text(outTemp + '°', x + 162, y)
+	Gdi.Text('O:' + outTemp + '°', x + 150, y)
+//	Gdi.Text(outTemp + '°', x + 162, y)
 
 	y = btnY
 	Gdi.Text('Fan:', x, y)
@@ -413,7 +409,7 @@ function LogHVAC( uxt, mode, secs, t1, rh1, t2, rh2 )
 	fso = null
 }
 
-function LogTemps( inTemp, targetTemp )
+function LogTemps( inTemp, targetTemp, inrh )
 {
 	if(targetTemp == 0)
 		return
@@ -422,7 +418,7 @@ function LogTemps( inTemp, targetTemp )
 	date = new Date()
 
 	tf = fso.OpenTextFile( 'stattemp.log', 8, true)
-	tf.WriteLine( date + ',' + inTemp + ',' + targetTemp )
+	tf.WriteLine( date + ',' + inTemp + ',' + targetTemp +',' + inrh )
 	tf.Close()
 	fso = null
 }
@@ -437,7 +433,7 @@ function TestSpark()	// async call for testing net connection so it doesn't free
 	xhr.open('POST', spark + deviceID + '/getvar?access_token=' + token, false)
 	xhr.onreadystatechange = testcb
 	xhr.setRequestHeader('content-type', 'application/x-www-form-urlencoded')
-	Pm.SetTimer(5*60*1000)
+	Pm.SetTimer(4*60*1000)
 	xhr.send( 'params=settings' )
 
 	var JsonObj = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
