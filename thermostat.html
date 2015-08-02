@@ -48,15 +48,15 @@ function myAjax(f, myDivToChange) {
 //    postData(url, poststr, myDivToChange);
 }
 
-function readVar(varName, myDivToChange2){
+function readVar(varName){
    var xmlHttp = setAjax();
    xmlHttp.onreadystatechange =  function(){
       if(xmlHttp.readyState > 0 && xmlHttp.readyState < 4){
-          document.getElementById(myDivToChange2).innerHTML=loadingmessage;
+          document.getElementById('myDivId').innerHTML=loadingmessage;
       }
       if (xmlHttp.readyState == 4) {
 		var JsonObj = JSON.parse(xmlHttp.responseText)
-		document.getElementById(myDivToChange2).innerHTML = JsonObj.result;
+		document.getElementById('myDivId').innerHTML = JsonObj.result;
       }
    }
    url = 'https://api.spark.io/v1/devices/' + document.all.myDeviceId.value + '/' + varName + '?access_token=' + document.all.myToken.value
@@ -67,17 +67,17 @@ function readVar(varName, myDivToChange2){
    return myJsonObject.result
 }
 
-function getVar(varName, myDivToChange2){
+function getVar(varName){
    var xmlHttp = setAjax();
    xmlHttp.onreadystatechange =  function(){
       if(xmlHttp.readyState > 0 && xmlHttp.readyState < 4){
-          document.getElementById(myDivToChange2).innerHTML=loadingmessage;
+          document.getElementById('myDivId').innerHTML=loadingmessage;
       }
       if (xmlHttp.readyState == 4) {
              // this is where the magic occcurs
              
           var JsonObj = JSON.parse(xmlHttp.responseText)
-          document.getElementById(myDivToChange2).innerHTML= JsonObj.return_value
+          document.getElementById('myDivId').innerHTML= JsonObj.return_value
       }
    }
    url = 'https://api.spark.io/v1/devices/' + document.all.myDeviceId.value + '/getvar?access_token=' + document.all.myToken.value
@@ -88,32 +88,30 @@ function getVar(varName, myDivToChange2){
    return myJsonObject.return_value;
 }
 
-function setVar(varName, value, myDivToChange2){
+function setVar(varName, value){
    var xmlHttp = setAjax();
    xmlHttp.onreadystatechange =  function(){
       if(xmlHttp.readyState > 0 && xmlHttp.readyState < 4){
-          document.getElementById(myDivToChange2).innerHTML=loadingmessage;
+          document.getElementById('myDivId').innerHTML=loadingmessage;
       }
       if (xmlHttp.readyState == 4) {
              // this is where the magic occcurs
              
-          var myJsonObject = JSON.parse(xmlHttp.responseText)
-          document.getElementById(myDivToChange2).innerHTML= myJsonObject.return_value
+		var myJsonObject = JSON.parse(xmlHttp.responseText)
+		document.getElementById('myDivId').innerHTML = myJsonObject.return_value
       }
    }
    url = 'https://api.spark.io/v1/devices/' + document.all.myDeviceId.value + '/setvar?access_token=' + document.all.myToken.value
    xmlHttp.open("POST", url, true)
    xmlHttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
    xmlHttp.send( 'params=' + varName + ',' + value)
-   var myJsonObject = JSON.parse(xmlHttp.responseText)
-   return myJsonObject.return_value
 }
 
 function getAll()
 {
 	stat = new Array('Cooling', 'Heating', 'eHeating')
 
- 	settings = getVar('settings','myDivId')
+ 	settings = getVar('settings')
    	mode = settings & 3
 	autoMode = (settings >> 2) & 3
 	heatMode = (settings >> 4) & 3
@@ -130,7 +128,7 @@ function getAll()
 	document.getElementById('heatmode').innerHTML = heatmodes[heatMode]
 
 
-	res = readVar( 'result','myDivId' )	// result set by settings call
+	res = readVar( 'result' )	// result set by settings call
 	Json = JSON.parse(res)
 
 	document.getElementById('cooll').value = +Json.c0 / 10
@@ -177,37 +175,32 @@ function setHeatMode(m)
 
 function setCoolHi()
 {
-	setVar('cooltemph', document.getElementById('coolh').value)
+	setVar('cooltemph', (+document.getElementById('coolh').value * 10).toFixed() )
 }
 
 function setCoolLo()
 {
-	setVar('cooltempl', document.getElementById('cooll').value)
+	setVar('cooltempl', (+document.getElementById('cooll').value * 10).toFixed() )
 }
 
 function setHeatHi()
 {
-	setVar('heattempl', document.getElementById('heath').value)
+	setVar('heattempl', (+document.getElementById('heath').value * 10).toFixed() )
 }
 
 function setHeatLo()
 {
-	setVar('heattempl', document.getElementById('heatl').value)
-}
-
-function setCoolLo()
-{
-	setVar('cooltempl', document.getElementById('cooll').value)
+	setVar('heattempl', (+document.getElementById('heatl').value * 10).toFixed() )
 }
 
 function setThresh()
 {
-	setVar('cyclethresh', document.getElementById('thresh').value)
+	setVar('cyclethresh', (+document.getElementById('thresh').value * 10).toFixed() )
 }
 
 function setFeanDelay()
 {
-	setVar('fanpostdelay', document.getElementById('fandelay').value)
+	setVar('fanpostdelay', +document.getElementById('fandelay').value)
 }
 
 function setIdleMin()
@@ -232,7 +225,7 @@ function setOvrTime()
 
 function setOvrTemp()
 {
-	setVar('override', document.getElementById('ovrtemp').value)
+	setVar('override', (+document.getElementById('ovrtemp').value *10).toFixed() )
 }
 
 //--></script>
@@ -404,3 +397,4 @@ Raw result:<br>
 </font>
 </body>
 </html>
+
