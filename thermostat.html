@@ -9,8 +9,6 @@
 }
 </style>
 
-<font style="font-size:16px">
-
 <script type="text/javascript">
 <!--
 
@@ -140,13 +138,13 @@ function getAll()
 	document.getElementById('idlemin').value = +Json.im
 	document.getElementById('cycmin').value = +Json.cn
 	document.getElementById('cycmax').value = +Json.cx
-	document.getElementById('filterhours').innerHTML = +Json.fh
+//	document.getElementById('filterhours').innerHTML = +Json.fh
 	document.getElementById('outtemp').innerHTML = +Json.ot / 10
 //	outFL = +Json.ol
 //	outFH = +Json.oh
-	document.getElementById('cyctimer').innerHTML = +Json.ct
+	document.getElementById('cyctimer').innerHTML = secsToTime( +Json.ct )
 //	document.getElementById('fantimer').innerHTML = +Json.ft
-//	document.getElementById('runtotal').innerHTML = +Json.rt
+	document.getElementById('runtotal').innerHTML = secsToTime( +Json.rt )
 //	tempDiffTotal = +Json.td
 	document.getElementById('ovrtime').value = +Json.ov
 	document.getElementById('rh').innerHTML = +Json.rh / 10
@@ -228,6 +226,33 @@ function setOvrTemp()
 	setVar('override', (+document.getElementById('ovrtemp').value *10).toFixed() )
 }
 
+function secsToTime( elap )
+{
+	d = 0
+	m = 0
+	h   = Math.floor(elap / 3600)
+	if(h >23)
+	{
+		d = Math.floor(h / 24)
+		h -= (d*24)
+	}
+	else
+	{
+		m = Math.floor((elap - (h * 3600)) / 60)
+		s = elap - (h * 3600) - (m * 60)
+		if( s < 10) s = '0' + s
+		if(h == 0)
+		{
+			if( m < 10) m = '  ' + m
+			return '    ' + m +':'+s
+		}
+	}
+	if( m < 10) m = '0' + m
+	if( h < 10) h = '  ' + h
+	if(d) return d + 'd ' + h + 'h'
+	return h+':'+m+':'+s
+}
+
 //--></script>
 
 </head>
@@ -247,8 +272,8 @@ function setOvrTemp()
 }">
 <strong><em>CuriousTech SparkOstat Remote</em></strong><br>
 <br>
-&nbsp;Device ID:-----<input id="myDeviceId" name="myCoreID" type=text size=50 placeholder="78dd12345678123456"><br>
-Access Token:-<input id="myToken" name="access_token" type=text size=50 placeholder="5622ce6bba702ef6bd3456d5ed26aaa4a28d7c9"><br>
+Device ID:&nbsp;&nbsp;&nbsp;&nbsp; <input id="myDeviceId" name="myCoreID" type=text size=50 placeholder="78dd12345678123456"><br>
+Access Token:<input id="myToken" name="access_token" type=text size=50 placeholder="5622ce6bba702ef6bd3456d5ed26aaa4a28d7c9"><br>
 <br>
 <input type="button" value="Store ID and Token" onClick="{
    localStorage.setItem('myStoredText1', document.all.myToken.value)   
@@ -372,7 +397,7 @@ Access Token:-<input id="myToken" name="access_token" type=text size=50 placehol
 		<td style="width: 185px">
 		<div name="cyctimer" id="cyctimer" style="width: 87px">cycle</div></td>
 		<td style="width: 81px">Total</td>
-		<td><div name="filterhours" id="filterhours">filter</div></td>
+		<td><div name="runtotal" id="runtotal">total</div></td>
 	</tr>
 </table>
 <br>
@@ -392,9 +417,7 @@ every <input type=text size=5 value=20 id="myPoll">Seconds
 
 <br><br>
 
-Raw result:<br>
-<div width="400" height="200" name="myDivName" id="myDivId"> look here </div><br>
-</font>
+JSON response:<br>
+<div width="400" height="200" name="myDivName" id="myDivId"> ............................................................................................................................... </div><br>
 </body>
 </html>
-
