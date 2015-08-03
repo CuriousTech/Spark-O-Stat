@@ -7,6 +7,9 @@
 .style1 {
 	border: 1px solid #000000;
 }
+.style2 {
+	text-align: right;
+}
 </style>
 
 <script type="text/javascript">
@@ -120,7 +123,8 @@ function getAll()
 	document.getElementById('fandelay').value = (settings >> 16) & 0xFF
 	document.getElementById('thresh').value = ((settings >> 24) & 0xFF) / 10
 
-	document.getElementById('fan').innerHTML = fan ? "On" : "Auto"
+	document.getElementById('fan').innerHTML = fan ? "Fan On" : "Fan Off"
+	document.getElementById('fanmode').innerHTML = fanMode ? "On" : "Auto"
 	document.getElementById('run').innerHTML = running ? stat[mode] : "Off"
 	document.getElementById('mode').innerHTML = modes[mode]
 	document.getElementById('heatmode').innerHTML = heatmodes[heatMode]
@@ -152,9 +156,10 @@ function getAll()
 
 function togglefan()
 {
-	fan = !fan
-	setVar('fanmode', fan ? 1:0)
-	document.getElementById('fan').innerHTML = fan ? "On" : "Auto"
+	fanMode = !fanMode
+	setVar('fanmode', fanMode ? 1:0)
+	document.getElementById('fanmode').innerHTML = fanMode ? "On" : "Auto"
+	document.getElementById('fan').innerHTML = "Fan " + (fanMode ? "On" : (fan ? "Off":"On"))
 }
 
 function setMode(m)
@@ -226,6 +231,11 @@ function setOvrTemp()
 	setVar('override', (+document.getElementById('ovrtemp').value *10).toFixed() )
 }
 
+function cancelOvr()
+{
+	setVar('override', 0)
+}
+
 function secsToTime( elap )
 {
 	d = 0
@@ -272,8 +282,9 @@ function secsToTime( elap )
 }">
 <strong><em>CuriousTech SparkOstat Remote</em></strong><br>
 <br>
-Device ID:&nbsp;&nbsp;&nbsp;&nbsp; <input id="myDeviceId" name="myCoreID" type=text size=50 placeholder="78dd12345678123456"><br>
-Access Token:<input id="myToken" name="access_token" type=text size=50 placeholder="5622ce6bba702ef6bd3456d5ed26aaa4a28d7c9"><br>
+Device ID:&nbsp;&nbsp;&nbsp;&nbsp; 
+<input id="myDeviceId" name="myCoreID" type=text size=50 placeholder="78dd12345678123456" style="width: 269px"><br>
+Access Token:<input id="myToken" name="access_token" type=text size=50 placeholder="5622ce6bba702ef6bd3456d5ed26aaa4a28d7c9" style="width: 264px"><br>
 <br>
 <input type="button" value="Store ID and Token" onClick="{
    localStorage.setItem('myStoredText1', document.all.myToken.value)   
@@ -290,34 +301,38 @@ Access Token:<input id="myToken" name="access_token" type=text size=50 placehold
 }">
 <input type="button" value="Refresh" onClick="{getAll()}">
 
-<table style="width: 400px; height: 22px;">
+<table style="width: 350px; height: 22px;" cellspacing="0">
 	<tr>
-		<td style="width: 100px">In</td>
-		<td style="width: 100px"><div name="intemp" id="intemp" style="width: 77px">in</div></td>
-		<td style="width: 100px">Trg</td>
-		<td style="width: 100px"><div name="target" id="target">trg</div></td>
-		<td style="width: 100px"><div name="rh" id="rh">rh</div></td>
-		<td style="width: 100px">Out</td>
-		<td style="width: 100px"><div name="outtemp" id="outtemp">out</div></td>
+		<td>In</td>
+		<td class="style2"><div name="intemp" id="intemp" class="style2">in</div></td>
+		<td>°</td>
+		<td>Trg</td>
+		<td class="style2"><div name="target" id="target" class="style2">trg</div></td>
+		<td>°</td>
+		<td class="style2"><div name="rh" id="rh" class="style2">rh</div></td>
+		<td>%</td>
+		<td>Out</td>
+		<td class="style2"><div name="outtemp" id="outtemp" class="style2">out</div></td>
+		<td>°</td>
 	</tr>
 </table>
 <br>
-<table style="width: 400px" class="style1">
+<table style="width: 360px" class="style1">
 	<tr>
-		<td style="width: 66px" class="style1">Fan</td>
-		<td style="width: 50px" class="style1"><div name="fan" id="fan">off</div></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Toggle" onClick="{togglefan()}"></td>
+		<td style="width: 81px" class="style1"><div name="fan1" id="fan">Fan Off</div></td>
+		<td style="width: 44px" class="style1"><div name="fan" id="fanmode">Auto</div></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Toggle" onClick="{togglefan()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">Run</td>
-		<td style="width: 50px" class="style1"><div name="run" id="run">off</div></td>
+		<td style="width: 81px" class="style1">Run</td>
+		<td style="width: 44px" class="style1"><div name="run" id="run">off</div></td>
 		<td style="width: 244px" class="style1">
 		&nbsp;</td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">Mode</td>
-		<td style="width: 50px" class="style1"><div name="mode" id="mode">off</div></td>
-		<td style="width: 244px" class="style1">
+		<td style="width: 81px" class="style1">Mode</td>
+		<td style="width: 44px" class="style1"><div name="mode" id="mode">off</div></td>
+		<td style="width: 200px" class="style1">
 		<input type="button" value="Off" onClick="{setMode(0)}">
 		<input type="button" value="Cool" onClick="{setMode(1)}">
 		<input type="button" value="Heat" onClick="{setMode(2)}">
@@ -325,73 +340,75 @@ Access Token:<input id="myToken" name="access_token" type=text size=50 placehold
 		</td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">HeatMode</td>
-		<td style="width: 50px" class="style1"><div name="heatmode" id="heatmode">Gas</div></td>
-		<td style="width: 244px" class="style1">
+		<td style="width: 81px" class="style1">HeatMode</td>
+		<td style="width: 44px" class="style1"><div name="heatmode" id="heatmode">Gas</div></td>
+		<td style="width: 200px" class="style1">
 		<input type="button" value="Gas" onClick="{setHeatMode(0)}">
 		<input type="button" value="Elec" onClick="{setHeatMode(1)}">
 		<input type="button" value="Auto" onClick="{setHeatMode(2)}">
 		</td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">Cool Hi</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="coolh"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setCoolHi()}"></td>
+		<td style="width: 81px" class="style1">Cool Hi</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="coolh"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCoolHi()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">Cool Lo</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="cooll"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setCoolLo()}"></td>
+		<td style="width: 81px" class="style1">Cool Lo</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="cooll"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCoolLo()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">Heat Hi</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="heath"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setHeatHi()}"></td>
+		<td style="width: 81px" class="style1">Heat Hi</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="heath"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setHeatHi()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">Heat Lo</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="heatl"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setHeatLo()}"></td>
+		<td style="width: 81px" class="style1">Heat Lo</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="heatl"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setHeatLo()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">Threshold</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="thresh"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setThresh()}"></td>
+		<td style="width: 81px" class="style1">Threshold</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="thresh"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setThresh()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">Fan Delay</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="fandelay"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setFanDelay()}"></td>
+		<td style="width: 81px" class="style1">Fan Delay</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="fandelay"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setFanDelay()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">Idle Min</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="idlemin"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setIdleMin()}"></td>
+		<td style="width: 81px" class="style1">Idle Min</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="idlemin"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setIdleMin()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">cycle Min</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="cycmin"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setCycMin()}"></td>
+		<td style="width: 81px" class="style1">cycle Min</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="cycmin"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCycMin()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">cycleMax</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="cycmax"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setCycMax()}"></td>
+		<td style="width: 81px" class="style1">cycleMax</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="cycmax"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCycMax()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">ovr Time</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="ovrtime"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Set" onClick="{setOvrTime()}"></td>
+		<td style="width: 81px" class="style1">ovr Time</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="ovrtime"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setOvrTime()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 66px" class="style1">ovrTemp</td>
-		<td style="width: 50px" class="style1"><input type=text size=5 value=0 id="ovrtemp"></td>
-		<td style="width: 104px" class="style1"><input type="button" value="Start" onClick="{setOvrTemp()}"></td>
+		<td style="width: 81px" class="style1">ovrTemp</td>
+		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="ovrtemp"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Start" onClick="{setOvrTemp()}">
+		<input type="button" value="Cancel" onClick="{cancelOvr()}">
+		</td>
 	</tr>
 </table>
 
 <br>
-<table style="width: 400px">
+<table style="width: 350px">
 	<tr>
 		<td style="width: 80px">Cycle</td>
 		<td style="width: 185px">
