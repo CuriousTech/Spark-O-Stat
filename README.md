@@ -5,13 +5,8 @@ This is my first GitHib project, and the idea is simple.  It's opensource and fl
 
 ![UI](http://www.curioustech.net/images/sparkostat0.jpg)
 
-A periodic screenshot of data collection: (currently the simulation running in conjunction with a real thermostat)
+A periodic screenshot of data collection: This is 5 days after going live.  Finally.  The swings are good.  The orange temp is changing because I moved that sensor around the house and then offset it to match an IR thermometer, so it was off quite a bit (sorry).  I've noticed the AC doesn't run at the low and high points of the day as it used to.  That's unexpected.  
 
-![graph](http://www.curioustech.net/images/hvac_history.png)
-
-Here's a test in auto mode during a wide swing in temperature.  Working as well as expected.  A 1-2 hour delayed shift might actually be more efficient.
-
-![graph2](http://www.curioustech.net/images/hvac_history2.png)
-
+![graph](http://curioustech.net/images/Screenshot%202015-08-03%2000.21.21.png)
 
 More info at http://www.curioustech.net/curiousprojects.html
