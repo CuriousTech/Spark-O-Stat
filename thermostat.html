@@ -10,6 +10,13 @@
 .style2 {
 	text-align: right;
 }
+.style3 {
+	background-color: #C0C0C0;
+}
+.style4 {
+	text-align: right;
+	background-color: #C0C0C0;
+}
 </style>
 
 <script type="text/javascript">
@@ -110,8 +117,6 @@ function setVar(varName, value){
 
 function getAll()
 {
-	stat = new Array('Cooling', 'Heating', 'eHeating')
-
  	settings = getVar('settings')
    	mode = settings & 3
 	autoMode = (settings >> 2) & 3
@@ -125,7 +130,8 @@ function getAll()
 
 	document.getElementById('fan').innerHTML = fan ? "Fan On" : "Fan Off"
 	document.getElementById('fanmode').innerHTML = fanMode ? "On" : "Auto"
-	document.getElementById('run').innerHTML = running ? stat[mode] : "Off"
+	m = (mode == 4) ? autoMode : mode
+	document.getElementById('run').innerHTML = running ? mode[m] : "Idle"
 	document.getElementById('mode').innerHTML = modes[mode]
 	document.getElementById('heatmode').innerHTML = heatmodes[heatMode]
 
@@ -300,24 +306,25 @@ Access Token:<input id="myToken" name="access_token" type=text size=50 placehold
     document.all.myDeviceId.style.visibility = 'visible'
 }">
 <input type="button" value="Refresh" onClick="{getAll()}">
-
-<table style="width: 350px; height: 22px;" cellspacing="0">
+<br>
+<br>
+<table style="width: 360px; height: 22px;" cellspacing="0">
 	<tr>
-		<td>In</td>
-		<td class="style2"><div name="intemp" id="intemp" class="style2">in</div></td>
-		<td>°</td>
-		<td>Trg</td>
-		<td class="style2"><div name="target" id="target" class="style2">trg</div></td>
-		<td>°</td>
-		<td class="style2"><div name="rh" id="rh" class="style2">rh</div></td>
-		<td>%</td>
-		<td>Out</td>
-		<td class="style2"><div name="outtemp" id="outtemp" class="style2">out</div></td>
-		<td>°</td>
+		<td class="style3">In</td>
+		<td class="style4"><div name="intemp" id="intemp" class="style2">in</div></td>
+		<td class="style3">°</td>
+		<td class="style3">Trg</td>
+		<td class="style4"><div name="target" id="target" class="style2">trg</div></td>
+		<td class="style3">°</td>
+		<td class="style4"><div name="rh" id="rh" class="style2">rh</div></td>
+		<td class="style3">%</td>
+		<td class="style3">Out</td>
+		<td class="style4"><div name="outtemp" id="outtemp" class="style2">out</div></td>
+		<td class="style3">°</td>
 	</tr>
 </table>
 <br>
-<table style="width: 360px" class="style1">
+<table style="width: 360px" class="style1" cellspacing="0">
 	<tr>
 		<td style="width: 81px" class="style1"><div name="fan1" id="fan">Fan Off</div></td>
 		<td style="width: 44px" class="style1"><div name="fan" id="fanmode">Auto</div></td>
@@ -408,18 +415,16 @@ Access Token:<input id="myToken" name="access_token" type=text size=50 placehold
 </table>
 
 <br>
-<table style="width: 350px">
+<table style="width: 360px">
 	<tr>
-		<td style="width: 80px">Cycle</td>
-		<td style="width: 185px">
+		<td style="width: 80px" class="style3">Cycle</td>
+		<td style="width: 147px" class="style3">
 		<div name="cyctimer" id="cyctimer" style="width: 87px">cycle</div></td>
-		<td style="width: 81px">Total</td>
-		<td><div name="runtotal" id="runtotal">total</div></td>
+		<td style="width: 81px" class="style3">Total</td>
+		<td class="style3"><div name="runtotal" id="runtotal">total</div></td>
 	</tr>
 </table>
 <br>
-<br>
-
 <input type="button" value="Poll" onClick="{
     if(document.all.myPoll.value < '5'){document.all.myPoll.value = 5}
     getAll()
@@ -438,3 +443,4 @@ JSON response:<br>
 <div width="400" height="200" name="myDivName" id="myDivId"> ............................................................................................................................... </div><br>
 </body>
 </html>
+
