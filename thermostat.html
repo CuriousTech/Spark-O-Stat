@@ -131,7 +131,7 @@ function getAll()
 	document.getElementById('fan').innerHTML = fan ? "Fan On" : "Fan Off"
 	document.getElementById('fanmode').innerHTML = fanMode ? "On" : "Auto"
 	m = (mode == 4) ? autoMode : mode
-	document.getElementById('run').innerHTML = running ? mode[m] : "Idle"
+	document.getElementById('run').innerHTML = running ? modes[m] : "Idle"
 	document.getElementById('mode').innerHTML = modes[mode]
 	document.getElementById('heatmode').innerHTML = heatmodes[heatMode]
 
