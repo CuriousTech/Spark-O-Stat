@@ -9,4 +9,8 @@ A periodic screenshot of data collection: This is 5 days after going live.  Fina
 
 ![graph](http://curioustech.net/images/Screenshot%202015-08-03%2000.21.21.png)
 
+This is the desktop control running on PngMagic  
+
+![control](http://www.curioustech.net/images/Screenshot%202015-08-05%2008.21.23.png)
+
 More info at http://www.curioustech.net/curiousprojects.html
