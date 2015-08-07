@@ -97,7 +97,11 @@ void HVAC::service()
 
 	if(m_overrideTimer)
 	{
-		m_overrideTimer--;
+		if(--m_overrideTimer == 0)
+		{
+		    m_ovrTemp = 0;
+			calcTargetTemp(m_EE.Mode);
+		}
 	}
 
 	if(m_bRunning)
@@ -137,7 +141,7 @@ void HVAC::service()
 			case Mode_Cool:
 				fanSwitch(true);
 				if(digitalRead(P_REV) != HIGH)
-    				{
+				{
 					digitalWrite(P_REV, HIGH);  // set to heatpump to cool (if heats, reverse this)
 					delay(5000);                //    if no heatpump, remove
 				}
@@ -165,8 +169,8 @@ void HVAC::service()
 		m_cycleTimer = 0;
 		m_startingTemp = m_inTemp;
 		m_startingRh = m_rh;
-		Serial.print("Op started. inTemp=");
-		Serial.println(m_inTemp);
+//		Serial.print("Op started. inTemp=");
+//		Serial.println(m_inTemp);
 	}
 
 	if(m_bStop && m_bRunning)	        		// Stop signal occurred
@@ -195,7 +199,7 @@ void HVAC::service()
 	}
 
 #ifdef SIM
-		simulator();
+	simulator();
 #endif
 	tempCheck();
 }
@@ -228,10 +232,10 @@ void HVAC::tempCheck()
 			case Mode_Heat:
 				if(m_inTemp >= m_targetTemp ) // has heated to desired temp
 				{
-					Serial.print("Stop ");
-					Serial.print(m_inTemp);
-					Serial.print(" >= ");
-					Serial.print(m_targetTemp);
+//					Serial.print("Stop ");
+//					Serial.print(m_inTemp);
+//					Serial.print(" >= ");
+//					Serial.print(m_targetTemp);
 					m_bStop = true;
 				}
 				break;
@@ -269,21 +273,21 @@ bool HVAC::preCalcCycle(int8_t mode)
 		case Mode_Auto:
 			if(m_inTemp >= m_EE.coolTemp[0] + m_EE.cycleThresh)
 			{
-				Serial.print("Auto cool ");
-				Serial.print(m_inTemp);
-				Serial.print(" ");
-				Serial.println(m_EE.coolTemp[0]);
+//				Serial.print("Auto cool ");
+//				Serial.print(m_inTemp);
+//				Serial.print(" ");
+//				Serial.println(m_EE.coolTemp[0]);
 				calcTargetTemp(Mode_Cool);
 				m_AutoMode = Mode_Cool;
 				bRet = true;
 			}
 			else if(m_inTemp <= m_EE.heatTemp[1] - m_EE.cycleThresh)
 			{
-				Serial.println("Auto heat");
+//				Serial.println("Auto heat");
 				m_AutoMode = Mode_Heat;
 				calcTargetTemp(Mode_Heat);
-				if(m_EE.heatMode == 2)
-				{
+		                if(m_EE.heatMode == 2)
+		                {
 					if(m_inTemp < m_outTemp - (m_EE.eHeatThresh * 10)) 	// Use gas when efficiency too low for pump
 						m_AutoHeat = 1;
 					else
@@ -293,7 +297,7 @@ bool HVAC::preCalcCycle(int8_t mode)
 			}
 			break;
 	}
-
+/*
 	if(bRet)
 	{
 		Serial.println("preCalc");
@@ -306,25 +310,23 @@ bool HVAC::preCalcCycle(int8_t mode)
 			Serial.print(", deg to stop=");
 			Serial.println( (float)(m_inTemp - m_targetTemp) / 10 );
 		}
-		else	// Heating is required at around 25 under indoor    (testing)
-		{	// Note: If outdoor temp climbs from 30 to 50, indoor temp doesn't drop from 70.
+		else                // Heating is required at around 25 under indoor    (testing)
+		{                   // Note: If outdoor temp climbs from 30 to 50, indoor temp doesn't drop from 70.
 			Serial.print(" Heat i/o diff=");
 			Serial.print( (float)diff / 10 );
 			Serial.print(", deg to stop=");
 			Serial.println( (float)(m_targetTemp - m_inTemp) / 10 );
 		}
 	}
-
+*/
 	return bRet;
 }
 
 void HVAC::calcTargetTemp(int8_t mode)
 {
-	if(digitalRead(P_REV) != (mode == Mode_Cool) )  // set heatpump same as current mode (Note: some models may be reversed)
-		digitalWrite(P_REV, (mode == Mode_Cool) ? HIGH : LOW);
-
-	if(m_overrideTimer)     // don't adjust during overide
-		return;
+	if(!m_bRunning)
+		if(digitalRead(P_REV) != (mode == Mode_Cool) )  // set heatpump same as current mode (Note: some models may be reversed)
+			digitalWrite(P_REV, (mode == Mode_Cool) ? HIGH : LOW);
 
 	int16_t L = m_outMin[1];
 	int16_t H = m_outMax[1];
@@ -334,7 +336,7 @@ void HVAC::calcTargetTemp(int8_t mode)
 		L = min(m_outMin[0], L);
 		H = max(m_outMax[0], H);
 	}
-
+	
 	L *= 10;    // shift a decimal place
 	H *= 10;
 
@@ -371,7 +373,7 @@ void HVAC::calcTargetTemp(int8_t mode)
 			}
 			break;
 	}
-	
+	m_targetTemp +=  + m_ovrTemp; // override is normally 0, unless set remotely with a timeout
 	Serial.print(" target=");
 	Serial.println(m_targetTemp);
 }
@@ -633,7 +635,8 @@ int HVAC::getVar(String s)
 			r |= (m_EE.heatMode << 4);	    // 2
 			r |= (m_bFanMode ? 0x40:0); 	// 1
 			r |= (m_bRunning ? 0x80:0); 	// 1
-			r |= (m_bFanRunning ? 0x100:0);  // 1
+			r |= (m_bFanRunning ? 0x100:0); // 1
+			r |= (m_ovrTemp ? 0x200:0);     // 1
 			r |= m_EE.eHeatThresh << 10;    // 6 (63 max)
 			r |= m_EE.fanPostDelay << 16;	// 8 (255)
 			r |= m_EE.cycleThresh << 24; 	// 8
@@ -641,7 +644,7 @@ int HVAC::getVar(String s)
 			// 160-191
 			m_EE.coolTemp[0], m_EE.coolTemp[1], m_EE.heatTemp[0], m_EE.heatTemp[1],
 			m_inTemp, m_targetTemp, m_EE.idleMin, m_EE.cycleMin, m_EE.cycleMax, m_EE.filterHours,
-			m_outTemp, m_outMin[1], m_outMax[1], m_cycleTimer, m_fanOnTimer, m_runTotal, m_tempDiffTotal, m_EE.overrideTime, m_rh);
+			m_outTemp, m_outMin[1], m_outMax[1], m_cycleTimer, m_fanOnTimer, m_runTotal, m_tempDiffTotal, m_EE.overrideTime,m_rh);
 
 			break;
 		case 2: // temp
@@ -726,7 +729,6 @@ int HVAC::setVar(String s)
 			break;
 		case 7:     // cyclemax
 			m_EE.cycleMax = val;
-			Serial.print("set cycleMax ");
 			Serial.println(m_EE.cycleMax);
 			break;
 		case 8:     // idlemin
@@ -751,8 +753,15 @@ int HVAC::setVar(String s)
 			m_EE.eHeatThresh = val;
 			break;
 		case 15:    // override
-			m_targetTemp = val;
-			m_overrideTimer = m_EE.overrideTime;
+		    if(val == 0)    // cancel
+		    {
+		        m_overrideTimer = 0;
+		    }
+		    else
+		    {
+    			m_ovrTemp = val;
+    			m_overrideTimer = m_EE.overrideTime;
+		    }
 			break;
 		case 16:    // overridetime
 			m_EE.overrideTime = val;
