@@ -74,7 +74,7 @@ public:
 
 	EEConfig m_EE;
 	char    m_szResult[200];
-	Forecast m_fcData[18];
+	Forecast m_fcData[20];
 	int16_t m_outTemp;          // adjusted current temp *10
 	int16_t	m_inTemp;		    // current adjusted indoor temperature *10
 	uint16_t m_targetTemp;      // end temp for cycle
@@ -109,6 +109,7 @@ private:
 	int16_t m_startingTemp;		// temp at start of cycle *10
 	int16_t m_startingRh;		// rh at start of cycle *10
 	int8_t  m_outMin[2], m_outMax[2];
+	int8_t  m_ovrTemp;
 	Log     m_logs[32];		// 512 bytes
 };
 
