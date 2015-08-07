@@ -24,7 +24,7 @@
 
 //#define T_CAL     // switch to touchscreen calibration mode (draws hits and 4 temp buttons are calibration values adjusted by thumbwheel)
 
-#define DHT_TEMP_ADJUST (-100)  // Adjust indoor temp by -7.0 degress
+#define DHT_TEMP_ADJUST (0)  // Adjust indoor temp by 0 degress (-20 = -2.0)
 #define ONE_DAY_MILLIS (24 * 60 * 60 * 1000)
 unsigned long lastSync;
 
@@ -131,15 +131,22 @@ void xml_callback(int8_t item, int8_t idx, char *p)
 			{
 				hO = 0;                     // reset hour offset
 				lastd = Time.day();
+				if(hvac.m_fcData[1].h != -1) // first read shouldn't shift (todo: this could fail in the winter)
+				{
+					hvac.m_fcData[0].t = hvac.m_fcData[1].t;
+					hvac.m_fcData[0].h = hvac.m_fcData[1].h;
+					if(hvac.m_fcData[0].h > 20 )
+						hvac.m_fcData[0].h -= 24;
+				}
 				break;
 			}
 			d = atoi(p + 8);                // 2014-mm-ddThh:00:00-tz:00
 			h = atoi(p + 11);
 			if(d != lastd) hO += 24;        // change to hours offset
 			lastd = d;
-			hvac.m_fcData[idx-1].h = h + hO;
+			hvac.m_fcData[idx].h = h + hO;
 
-			newtz = atoi(p + 20);
+			newtz = atoi(p + 20);           // timezone will be different at 2AM entry
 			if(p[19] == '-')
 				newtz = -newtz;
 
@@ -148,18 +155,17 @@ void xml_callback(int8_t item, int8_t idx, char *p)
 				tz = newtz;
 				if(idx == 1)
 				{
-					Time.zone(tz);      // needs change now
+					Time.zone(tz);          // needs change now
 				}
 				else
 				{
-					bUpdateDST = true;  // change it at 2AM
+					bUpdateDST = true;      // change it at 2AM
 				}
 			}
 			break;
 		case 1:                             // temperature
-			if(!idx)                        // 1st value is not temp
-				break;
-			hvac.m_fcData[idx-1].t = atoi(p);
+			if(idx)                         // 1st value is not temp
+    			hvac.m_fcData[idx].t = atoi(p);
 			break;
 	}
 }
@@ -197,26 +203,38 @@ int tween(int8_t t1, int8_t t2, int m, int8_t h)
 	return (int)((t + t1) * 10);
 }
 
+// This is where the "current" outdoor temperature is calculated, including the time shift
+// m_fcData[1] is the current 3 hour frame. m_cfData[0] is the previous 3 hour
+// When starting up, it may be up to 2 hours ahead
+// By shifting +/- up to 2 hours, the target can be time adjusted
 void displayOutTemp()
 {
     lUpdateOutTemp = millis();
 
-    int8_t hd = Time.hour() - hvac.m_fcData[0].h;       // hours past 1st value
+    int8_t i = 1;
+    bool bHValid = (hvac.m_fcData[0].h != -1 && (hvac.m_fcData[0].h != hvac.m_fcData[1].h) );  // It can take up to 6 hours to fill this correctly
+
+    // Todo: Set the shift here
+    int8_t hd = Time.hour() - hvac.m_fcData[i].h;   // hours past 1st value
 
     int16_t outTemp;
 
-    if(hd < 0)                                          // 1st value is top of next hour
-    {
-//        Serial.println("future");
-        outTemp = hvac.m_fcData[0].t * 10;              // just use it
+    if(hd < 0)                                      // 1st value is top of next hour
+    {                                               // Shouldn't happen
+        outTemp = hvac.m_fcData[i].t * 10;          // just use it
     }
     else
     {
-        int m = Time.minute();              // offset = hours past + minutes of hour
+        int8_t m = Time.minute();                   // offset = hours past + minutes of hour
 
-        if(hd) m += (hd * 60);              // add hours ahead (up to 2)
+        if(hd) m += (hd * 60);                      // add hours ahead (up to 2)
 
-        outTemp = tween(hvac.m_fcData[0].t, hvac.m_fcData[1].t, m, hvac.m_fcData[1].h - hvac.m_fcData[0].h);
+        if( m > 3*60)                               // tween the 2nd pair (a delay shift)
+        {
+            m -= 3*60;
+            i++;
+        }
+        outTemp = tween(hvac.m_fcData[i].t, hvac.m_fcData[i+1].t, m, hvac.m_fcData[i+1].h - hvac.m_fcData[i].h);
     }
 
     hvac.updateOutdoorTemp(outTemp);
@@ -235,10 +253,10 @@ void drawForecast()
 	int8_t max = -50;
 	int8_t i;
 
-	if(hvac.m_fcData[0].h == -1)          // no first run
+	if(hvac.m_fcData[1].h == -1)          // no first run
 		return;
 
-	int8_t hrs = ( ((hvac.m_fcData[0].h - Time.hour()) + 1) % 3 ) + 1;   // Set interval to 2, 5, 8, 11..
+	int8_t hrs = ( ((hvac.m_fcData[1].h - Time.hour()) + 1) % 3 ) + 1;   // Set interval to 2, 5, 8, 11..
 	int8_t mins = (60 - Time.minute() + 54) % 60;   // mins to :54, retry will be :59
 
 	if(mins > 10 && hrs > 2) hrs--;     // wrong
@@ -271,14 +289,14 @@ void drawForecast()
         Serial.println(fcD[3].t);
 */
 
-	// Get min/max
-	for(i = 0; i < 18; i++)
+    // Get min/max
+	for(i = 1; i < 19; i++)
 	{
 		int8_t t = hvac.m_fcData[i].t;
 		if(min > t) min = t;
 		if(max < t) max = t;
 	}
-	
+
 	if(min == max) max++;   // div by 0 check
 	
 	hvac.updatePeaks(min, max);
@@ -302,8 +320,8 @@ void drawForecast()
 		if( t < -9 || t > 9) x -= FONT_SPACE;   // 2 digit
 		if( t > 99) x -= FONT_SPACE;            // another digit (probably not -100)
 
-        tft.setCursor(x, y-(FONT_Y>>1));
-        tft.print(t);
+		tft.setCursor(x, y-(FONT_Y>>1));
+		tft.print(t);
 		tft.drawFastHLine(Fc_Left, y, Fc_Right-Fc_Left, GRAY1);
 		y += incy;
 		t -= dec;
@@ -314,10 +332,10 @@ void drawForecast()
 
 	int8_t day = Time.weekday()-1;              // current day
 	int8_t h0 = Time.hour();                    // zeroeth hour
-	int8_t pts = hvac.m_fcData[17].h - h0;
+	int8_t pts = hvac.m_fcData[18].h - h0;
 	int8_t h;
 	int16_t day_x = 0;
-	
+
 	if(pts <= 0) return;                     // error
 
 	for(i = 0, h = h0; i < pts; i++, h++)    // v-lines
@@ -345,10 +363,10 @@ void drawForecast()
 		tft.setCursor(day_x, Fc_Bottom + 2);       // draw last day
 		tft.print(_days_short[day]);
 	}
-	int16_t y2 = Fc_Bottom - 1 - (hvac.m_fcData[0].t - min) * (Fc_Bottom-Fc_Top-2) / (max-min);
+	int16_t y2 = Fc_Bottom - 1 - (hvac.m_fcData[1].t - min) * (Fc_Bottom-Fc_Top-2) / (max-min);
 	int16_t x2 = Fc_Left;
 
-	for(i = 0; i < 18; i++)
+	for(i = 1; i < 19; i++)
 	{
 		int y1 = Fc_Bottom - 1 - (hvac.m_fcData[i].t - min) * (Fc_Bottom-Fc_Top-2) / (max-min);
 		int x1 = Fc_Left + (hvac.m_fcData[i].h - h0) * (Fc_Right-Fc_Left) / pts;
@@ -385,13 +403,6 @@ Button buttons[] =
     {  4, 165,  72, 34},    // 10 gas/elec
 
     {  4, 202, 216, 34},    // 11 Notifications (filter)  18 char max
-
-//    {  4, 202, 72, 34},    // 8 fan  (do not change positon: fan/mode reference in hvac.setMode)
-//    { 80, 202, 72, 34},    // 9 mode
-//    {156, 202, 64, 34},    // 10 gas/elec
-//    {  4, 165, 216, 34},    // 11 Notifications (filter)  18 char max
-
-//  unused area 0, 90, 216, 165-90
 
     { 0, 0, 0, 0}
 };
@@ -519,7 +530,8 @@ void drawButton(int8_t btn, bool bDown, bool bFast) // draw a button with presse
             bDeg = true;
             break;
         case 6: // in temp
-            cvtNum(szText, (int)(DHT.getFahrenheit() * 10) );
+//            cvtNum(szText, hvac.m_inTemp );         // display adjusted indoor temp
+            cvtNum(szText, (int)(DHT.getFahrenheit() * 10) );         // display adjusted indoor temp
             bDeg = true;
             break;
         case 7: // in rh
@@ -636,9 +648,9 @@ void HandleTouch(bool bDown)
 
         if(lastX != -1)
         {
-		tft.drawFastHLine(lastX-20, lastY, 40, ILI9341_BLACK);
-		tft.drawFastVLine(lastX, lastY-20, 40, ILI9341_BLACK);
-		tft.drawCircle(lastX, lastY, 15, ILI9341_BLACK);
+		    tft.drawFastHLine(lastX-20, lastY, 40, ILI9341_BLACK);
+		    tft.drawFastVLine(lastX, lastY-20, 40, ILI9341_BLACK);
+		    tft.drawCircle(lastX, lastY, 15, ILI9341_BLACK);
         }
         tft.drawFastHLine(x-20, y, 40, ILI9341_CYAN);
         tft.drawFastVLine(x, y-20, 40, ILI9341_CYAN);
@@ -902,24 +914,24 @@ void setup()
 
 void loop()
 {
-    static int8_t lastSec;
-    static int8_t lastHour;
-    static int8_t lastMode;
-    static bool bDown = false;
-
-    if( touch.pressed() )
-    {
-        bDown = true;
-        HandleTouch(true);
-    }
-    else
-    {
-        if(bDown)
-            HandleTouch(false);     // release
-        bDown = false;
-    }
-    
-    while( EncoderCheck() );
+	static int8_t lastSec;
+	static int8_t lastHour;
+	static int8_t lastMode;
+	static bool bDown = false;
+	
+	if( touch.pressed() )
+	{
+		bDown = true;
+		HandleTouch(true);
+	}
+	else
+	{
+		if(bDown)
+		    HandleTouch(false);     // release
+		bDown = false;
+	}
+	
+	while( EncoderCheck() );
 
 	if (Time.second() != lastSec)   // things to do every second
 	{
