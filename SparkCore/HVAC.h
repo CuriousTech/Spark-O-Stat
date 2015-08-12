@@ -79,6 +79,7 @@ public:
 	int16_t	m_inTemp;		    // current adjusted indoor temperature *10
 	uint16_t m_targetTemp;      // end temp for cycle
 	const char *m_pszNote[8];
+	int16_t	m_fcShift;		    // forecast delta +/-120 mins
 
 private:
 	void	fanSwitch(bool bOn);
@@ -89,15 +90,16 @@ private:
 	int     CmdIdx(String s, const char **pCmds);
 	void	simulator(void);
 
-	bool	m_bFanMode;		// Auto=false, On=true
-	int8_t	m_AutoMode;		// cool, heat
-	int8_t	m_setMode;		// new mode request
-	int8_t	m_setHeat;		// new heat mode request
-	int8_t	m_AutoHeat;		// auto heat mode choice
-	bool	m_bRunning;		// is operating
+	bool	m_bFanMode;		    // Auto=false, On=true
+	int8_t	m_AutoMode;		    // cool, heat
+	int8_t	m_setMode;		    // new mode request
+	int8_t	m_setHeat;		    // new heat mode request
+	int8_t	m_AutoHeat;		    // auto heat mode choice
+	bool	m_bRunning;	    	// is operating
 	bool	m_bFanRunning;		// when fan is running
-	bool	m_bStart;		// signal to start
-	bool	m_bStop;		// signal to stop
+	bool	m_bStart;		    // signal to start
+	bool	m_bStop;	    	// signal to stop
+	bool    m_bRecheck;
 	uint16_t m_runTotal;		// time HVAC has been running total since reset
 	uint16_t m_tempDiffTotal;	// total temp change for total runs (6553.5 deg of change)
 	uint16_t m_fanOnTimer;		// time fan is running
@@ -109,8 +111,8 @@ private:
 	int16_t m_startingTemp;		// temp at start of cycle *10
 	int16_t m_startingRh;		// rh at start of cycle *10
 	int8_t  m_outMin[2], m_outMax[2];
-	int8_t  m_ovrTemp;
-	Log     m_logs[32];		// 512 bytes
+	int8_t  m_ovrTemp;          // override delta of target
+	Log     m_logs[32]; 		// 512 bytes
 };
 
 #define	P_FAN	D4
