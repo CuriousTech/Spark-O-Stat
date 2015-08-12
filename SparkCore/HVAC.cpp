@@ -16,16 +16,16 @@
 
 HVAC::HVAC()
 {
-	m_EE.fanPostDelay = 90; 	// 90 seconds after compressor stops
+	m_EE.fanPostDelay = 120; 	// 90 seconds after compressor stops
 	m_EE.filterHours = 0;
 	m_EE.cycleMin = 60;		    // 60 seconds minimum for a cycle
 	m_EE.cycleMax = 60*15;		// 15 minutes maximun for a cycle
 	m_EE.idleMin = 60*5;		// 5 minutes minimum between cycles
-	m_EE.cycleThresh = 15;		// 1.5 degree cycle range
-	m_EE.coolTemp[1] = 820;		// 81.0 default temps
+	m_EE.cycleThresh = 16;		// 1.5 degree cycle range
+	m_EE.coolTemp[1] = 820;		// 82.0 default temps
 	m_EE.coolTemp[0] = 790;		// 79.0
-	m_EE.heatTemp[1] = 720;		// 74.0
-	m_EE.heatTemp[0] = 680;		// 70.0
+	m_EE.heatTemp[1] = 740;		// 74.0
+	m_EE.heatTemp[0] = 700;		// 70.0
 	m_EE.eHeatThresh = 30;		// Setting this low (30 deg) for now
 	m_EE.overrideTime = 10 * 60;	// setting for override
 	m_EE.id = 0xAA55;		    // EE value for validity check or struct size changes
@@ -123,7 +123,7 @@ void HVAC::service()
 			m_bStop = true;
 		if(m_idleTimer >= 5)
 		{
-			m_EE.heatMode = m_setHeat;
+            m_EE.heatMode = m_setHeat;
 			m_EE.Mode = m_setMode;	        // User may be cycling through modes (give 5s)
 			calcTargetTemp(m_EE.Mode);
 		}
@@ -220,17 +220,20 @@ void HVAC::tempCheck()
 
 		int8_t mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode;
 
-		if(Time.second() == 0)
+		if(Time.second() == 0 || m_bRecheck)
+		{
+			m_bRecheck = false;
 			preCalcCycle(m_EE.Mode);
-    
+		}
+
 		switch(mode)
 		{
 			case Mode_Cool:
-				if( m_inTemp <= m_targetTemp ) // has cooled to desired temp
+				if( m_inTemp <= m_targetTemp - m_EE.cycleThresh ) // has cooled to desired temp
 					m_bStop = true;
 				break;
 			case Mode_Heat:
-				if(m_inTemp >= m_targetTemp ) // has heated to desired temp
+				if(m_inTemp >= m_targetTemp + m_EE.cycleThresh) // has heated to desired temp
 				{
 //					Serial.print("Stop ");
 //					Serial.print(m_inTemp);
@@ -246,8 +249,11 @@ void HVAC::tempCheck()
 		if(m_idleTimer < m_EE.idleMin)
 			return;
 
-		if(Time.second() == 0)
-			m_bStart = preCalcCycle(m_EE.Mode);
+		if(Time.second() == 0 || m_bRecheck)
+		{
+		    m_bRecheck = false;
+		    m_bStart = preCalcCycle(m_EE.Mode);
+		}
 	}
 }
 
@@ -262,16 +268,16 @@ bool HVAC::preCalcCycle(int8_t mode)
 	{
 		case Mode_Cool:
 			calcTargetTemp(Mode_Cool);
-			if(m_inTemp >= m_targetTemp + m_EE.cycleThresh)    // has reached threshold above desired temp
+			if(m_inTemp >= m_targetTemp)    // has reached threshold above desired temp
 				bRet = true;
 			break;
 		case Mode_Heat:
 			calcTargetTemp(Mode_Heat);
-			if(m_inTemp <= m_targetTemp - m_EE.cycleThresh)
+			if(m_inTemp <= m_targetTemp)
 				bRet = true;
 			break;
 		case Mode_Auto:
-			if(m_inTemp >= m_EE.coolTemp[0] + m_EE.cycleThresh)
+			if(m_inTemp >= m_EE.coolTemp[0])
 			{
 //				Serial.print("Auto cool ");
 //				Serial.print(m_inTemp);
@@ -281,13 +287,13 @@ bool HVAC::preCalcCycle(int8_t mode)
 				m_AutoMode = Mode_Cool;
 				bRet = true;
 			}
-			else if(m_inTemp <= m_EE.heatTemp[1] - m_EE.cycleThresh)
+			else if(m_inTemp <= m_EE.heatTemp[1])
 			{
 //				Serial.println("Auto heat");
 				m_AutoMode = Mode_Heat;
 				calcTargetTemp(Mode_Heat);
-		                if(m_EE.heatMode == 2)
-		                {
+				if(m_EE.heatMode == 2)
+				{
 					if(m_inTemp < m_outTemp - (m_EE.eHeatThresh * 10)) 	// Use gas when efficiency too low for pump
 						m_AutoHeat = 1;
 					else
@@ -615,6 +621,7 @@ static const char *cGCmds[] =
 	"settings",
 	"temp",
 	"log",
+	"debug",
 	NULL
 };
 
@@ -666,6 +673,11 @@ int HVAC::getVar(String s)
 				m_logs[i].time = 0;
 			}
 			break;
+		case 4: // debug
+			sprintf(m_szResult, "{\"h0\":%d,\"t0\":%d,\"h1\":%d,\"t1\":%d,\"h2\":%d,\"t2\":%d}",
+				m_fcData[0].h,m_fcData[0].t,m_fcData[1].h,m_fcData[1].t,m_fcData[2].h,m_fcData[2].t);
+            r = 0;
+            break;
 	}
 	return r;
 }
@@ -690,6 +702,7 @@ static const char *cSCmds[] =
 	"override",
 	"overridetime",
 	"notify",
+	"fcdelta",
 	NULL
 };
 
@@ -739,40 +752,49 @@ int HVAC::setVar(String s)
 			break;
 		case 10:    // cooltempl
 			setTemp(Mode_Cool, val, 0);
+			m_bRecheck = true; // faster update
 			return 1;
 		case 11:    // cooltemph
 			setTemp(Mode_Cool, val, 1);
+			m_bRecheck = true;
 			return 0;
 		case 12:    // heattempl
 			setTemp(Mode_Heat, val, 0);
+			m_bRecheck = true;
 			return 3;
 		case 13:    // heattemph
 			setTemp(Mode_Heat, val, 1);
+			m_bRecheck = true;
 			return 2;
 		case 14:    // eheatthresh
 			m_EE.eHeatThresh = val;
 			break;
 		case 15:    // override
-		    if(val == 0)    // cancel
-		    {
-		        m_overrideTimer = 0;
-		    }
-		    else
-		    {
-    			m_ovrTemp = val;
-    			m_overrideTimer = m_EE.overrideTime;
-		    }
+			if(val == 0)    // cancel
+			{
+				m_overrideTimer = 0;
+				m_bRecheck = true;
+			}
+			else
+			{
+				m_ovrTemp = val;
+				m_overrideTimer = m_EE.overrideTime;
+				m_bRecheck = true;
+			}
 			break;
 		case 16:    // overridetime
 			m_EE.overrideTime = val;
 			break;
 		case 17:    // notify
-		{
-			static char szNote[16];
-			sVal.toCharArray( szNote, 16);
-			addNotification(szNote);
-		}
-		return 11;
+			{
+				static char szNote[16];
+				sVal.toCharArray( szNote, 16);
+				addNotification(szNote);
+			}
+			return 11;
+		case 18:
+			m_fcShift = val;
+			break;
 	}
 	return -1;      // default no button to refresh
 }
