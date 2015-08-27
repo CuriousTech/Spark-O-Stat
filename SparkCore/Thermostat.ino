@@ -131,22 +131,15 @@ void xml_callback(int8_t item, int8_t idx, char *p)
 			{
 				hO = 0;                     // reset hour offset
 				lastd = Time.day();
-				if(hvac.m_fcData[1].h != -1) // first read shouldn't shift (todo: this could fail in the winter)
-				{
-					hvac.m_fcData[0].t = hvac.m_fcData[1].t;
-					hvac.m_fcData[0].h = hvac.m_fcData[1].h;
-					if(hvac.m_fcData[0].h > 20 )
-						hvac.m_fcData[0].h -= 24;
-				}
 				break;
 			}
 			d = atoi(p + 8);                // 2014-mm-ddThh:00:00-tz:00
 			h = atoi(p + 11);
 			if(d != lastd) hO += 24;        // change to hours offset
 			lastd = d;
-			hvac.m_fcData[idx].h = h + hO;
+			hvac.m_fcData[idx-1].h = h + hO;
 
-			newtz = atoi(p + 20);           // timezone will be different at 2AM entry
+			newtz = atoi(p + 20);
 			if(p[19] == '-')
 				newtz = -newtz;
 
@@ -155,17 +148,18 @@ void xml_callback(int8_t item, int8_t idx, char *p)
 				tz = newtz;
 				if(idx == 1)
 				{
-					Time.zone(tz);          // needs change now
+					Time.zone(tz);      // needs change now
 				}
 				else
 				{
-					bUpdateDST = true;      // change it at 2AM
+					bUpdateDST = true;  // change it at 2AM
 				}
 			}
 			break;
 		case 1:                             // temperature
-			if(idx)                         // 1st value is not temp
-    			hvac.m_fcData[idx].t = atoi(p);
+			if(!idx)                        // 1st value is not temp
+				break;
+			hvac.m_fcData[idx-1].t = atoi(p);
 			break;
 	}
 }
@@ -203,43 +197,32 @@ int tween(int8_t t1, int8_t t2, int m, int8_t h)
 	return (int)((t + t1) * 10);
 }
 
-// This is where the "current" outdoor temperature is calculated, including the time shift
-// m_fcData[1] is the current 3 hour frame. m_cfData[0] is the previous 3 hour
+// This is where the "current" outdoor temperature is calculated
 // When starting up, it may be up to 2 hours ahead
-// By shifting +/- up to 2 hours, the target can be time adjusted
 void displayOutTemp()
 {
     lUpdateOutTemp = millis();
 
-    int8_t i = 1;
-    bool bHValid = (hvac.m_fcData[0].h != -1 && (hvac.m_fcData[0].h != hvac.m_fcData[1].h) );  // It can take up to 6 hours to fill this correctly
-
-    // Todo: Set the shift here
-    int8_t hd = Time.hour() - hvac.m_fcData[i].h;   // hours past 1st value
-
+    int8_t hd = Time.hour() - hvac.m_fcData[0].h;       // hours past 1st value
     int16_t outTemp;
 
-    if(hd < 0)                                      // 1st value is top of next hour
-    {                                               // Shouldn't happen
-        outTemp = hvac.m_fcData[i].t * 10;          // just use it
-    }
-    else
-    {
-        int8_t m = Time.minute();                   // offset = hours past + minutes of hour
+	if(hd < 0)                                          // 1st value is top of next hour
+	{
+		//  Serial.println("future");
+		outTemp = hvac.m_fcData[0].t * 10;              // just use it
+	}
+	else
+	{
+		int m = Time.minute();              // offset = hours past + minutes of hour
+	
+		if(hd) m += (hd * 60);              // add hours ahead (up to 2)
 
-        if(hd) m += (hd * 60);                      // add hours ahead (up to 2)
+		outTemp = tween(hvac.m_fcData[0].t, hvac.m_fcData[1].t, m, hvac.m_fcData[1].h - hvac.m_fcData[0].h);
+	}
 
-        if( m > 3*60)                               // tween the 2nd pair (a delay shift)
-        {
-            m -= 3*60;
-            i++;
-        }
-        outTemp = tween(hvac.m_fcData[i].t, hvac.m_fcData[i+1].t, m, hvac.m_fcData[i+1].h - hvac.m_fcData[i].h);
-    }
+	hvac.updateOutdoorTemp(outTemp);
 
-    hvac.updateOutdoorTemp(outTemp);
-
-    drawButton(5, false, true);
+	drawButton(5, false, true);
 }
 
 #define Fc_Left     24
@@ -253,44 +236,17 @@ void drawForecast()
 	int8_t max = -50;
 	int8_t i;
 
-	if(hvac.m_fcData[1].h == -1)          // no first run
+	if(hvac.m_fcData[0].h == -1)          // no first run
 		return;
 
-	int8_t hrs = ( ((hvac.m_fcData[1].h - Time.hour()) + 1) % 3 ) + 1;   // Set interval to 2, 5, 8, 11..
+	int8_t hrs = ( ((hvac.m_fcData[0].h - Time.hour()) + 1) % 3 ) + 1;   // Set interval to 2, 5, 8, 11..
 	int8_t mins = (60 - Time.minute() + 54) % 60;   // mins to :54, retry will be :59
 
 	if(mins > 10 && hrs > 2) hrs--;     // wrong
 
 	FcstInterval = ((hrs * 60) + mins) * 60;
-/*
-        Serial.println("drawForecast");
-        Serial.print("Hour diff = ");
-        Serial.println(h - Time.hour());
-        Serial.print("Updating in ");
-        Serial.print(hrs);
-        Serial.print(" hours ");
-        Serial.print(mins);
-        Serial.println(" mins");
-
-        Serial.println(Time.hour());
-        Serial.print(fcD[0].h);
-        Serial.print(" ");
-        Serial.print(fcD[1].h);
-        Serial.print(" ");
-        Serial.print(fcD[2].h);
-        Serial.print(" ");
-        Serial.println(fcD[3].h);
-        Serial.print(fcD[0].t);
-        Serial.print(" ");
-        Serial.print(fcD[1].t);
-        Serial.print(" ");
-        Serial.print(fcD[2].t);
-        Serial.print(" ");
-        Serial.println(fcD[3].t);
-*/
-
-    // Get min/max
-	for(i = 1; i < 19; i++)
+	// Get min/max
+	for(i = 0; i < 18; i++)
 	{
 		int8_t t = hvac.m_fcData[i].t;
 		if(min > t) min = t;
@@ -332,7 +288,7 @@ void drawForecast()
 
 	int8_t day = Time.weekday()-1;              // current day
 	int8_t h0 = Time.hour();                    // zeroeth hour
-	int8_t pts = hvac.m_fcData[18].h - h0;
+	int8_t pts = hvac.m_fcData[17].h - h0;
 	int8_t h;
 	int16_t day_x = 0;
 
@@ -363,10 +319,10 @@ void drawForecast()
 		tft.setCursor(day_x, Fc_Bottom + 2);       // draw last day
 		tft.print(_days_short[day]);
 	}
-	int16_t y2 = Fc_Bottom - 1 - (hvac.m_fcData[1].t - min) * (Fc_Bottom-Fc_Top-2) / (max-min);
+	int16_t y2 = Fc_Bottom - 1 - (hvac.m_fcData[0].t - min) * (Fc_Bottom-Fc_Top-2) / (max-min);
 	int16_t x2 = Fc_Left;
 
-	for(i = 1; i < 19; i++)
+	for(i = 0; i < 18; i++)
 	{
 		int y1 = Fc_Bottom - 1 - (hvac.m_fcData[i].t - min) * (Fc_Bottom-Fc_Top-2) / (max-min);
 		int x1 = Fc_Left + (hvac.m_fcData[i].h - h0) * (Fc_Right-Fc_Left) / pts;
