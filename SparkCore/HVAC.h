@@ -79,7 +79,6 @@ public:
 	int16_t	m_inTemp;		    // current adjusted indoor temperature *10
 	uint16_t m_targetTemp;      // end temp for cycle
 	const char *m_pszNote[8];
-	int16_t	m_fcShift;		    // forecast delta +/-120 mins
 
 private:
 	void	fanSwitch(bool bOn);
