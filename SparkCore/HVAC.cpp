@@ -70,7 +70,7 @@ void HVAC::fanTimeAccum()
 	if(nSecs >= 60 * 60)    // increment filter hours
 	{
 		m_EE.filterHours++;
-		nSecs -= 60*60;     // and subract an hour
+		nSecs -= 60*60;     // and subtract an hour
 	}
 }
 
@@ -621,7 +621,6 @@ static const char *cGCmds[] =
 	"settings",
 	"temp",
 	"log",
-	"debug",
 	NULL
 };
 
@@ -673,11 +672,6 @@ int HVAC::getVar(String s)
 				m_logs[i].time = 0;
 			}
 			break;
-		case 4: // debug
-			sprintf(m_szResult, "{\"h0\":%d,\"t0\":%d,\"h1\":%d,\"t1\":%d,\"h2\":%d,\"t2\":%d}",
-				m_fcData[0].h,m_fcData[0].t,m_fcData[1].h,m_fcData[1].t,m_fcData[2].h,m_fcData[2].t);
-            r = 0;
-            break;
 	}
 	return r;
 }
@@ -702,7 +696,6 @@ static const char *cSCmds[] =
 	"override",
 	"overridetime",
 	"notify",
-	"fcdelta",
 	NULL
 };
 
@@ -792,9 +785,6 @@ int HVAC::setVar(String s)
 				addNotification(szNote);
 			}
 			return 11;
-		case 18:
-			m_fcShift = val;
-			break;
 	}
 	return -1;      // default no button to refresh
 }
