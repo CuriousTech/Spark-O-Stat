@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE eagle SYSTEM "eagle.dtd">
-<eagle version="7.1.0">
+<eagle version="7.3.0">
 <drawing>
 <settings>
 <setting alwaysvectorfont="no"/>
@@ -5701,7 +5701,6 @@ Spark Fun Electronics SKU : Comp-Buzzer</description>
 <part name="P+4" library="supply1" deviceset="+5V" device=""/>
 <part name="R5" library="SparkFun-Passives" deviceset="RESISTOR" device="0805-RES" value="200"/>
 <part name="C3" library="SparkFun-Capacitors" deviceset="CAP" device="0805" value="0.1uF"/>
-<part name="C4" library="SparkFun-Capacitors" deviceset="CAP" device="0805" value="0.1uF"/>
 <part name="SJ1" library="jumper" deviceset="SJ" device=""/>
 <part name="C5" library="SparkFun-Capacitors" deviceset="CAP" device="0805" value="0.01uF"/>
 <part name="ENC" library="CuriousTech" deviceset="ROTARY_ENCODER" device=""/>
@@ -5777,7 +5776,6 @@ VCC</text>
 <instance part="P+4" gate="1" x="224.79" y="130.81"/>
 <instance part="R5" gate="G$1" x="212.09" y="106.68" rot="R180"/>
 <instance part="C3" gate="G$1" x="224.79" y="119.38"/>
-<instance part="C4" gate="G$1" x="116.84" y="120.65"/>
 <instance part="SJ1" gate="1" x="43.18" y="25.4" rot="R90"/>
 <instance part="C5" gate="G$1" x="166.37" y="104.14"/>
 <instance part="ENC" gate="G$1" x="161.29" y="127" rot="R270"/>
@@ -5883,13 +5881,8 @@ VCC</text>
 </segment>
 <segment>
 <pinref part="GND11" gate="1" pin="GND"/>
-<wire x1="106.68" y1="110.49" x2="106.68" y2="113.03" width="0.1524" layer="91"/>
 <pinref part="C2" gate="G$1" pin="-"/>
-<pinref part="C4" gate="G$1" pin="2"/>
-<wire x1="106.68" y1="113.03" x2="106.68" y2="115.57" width="0.1524" layer="91"/>
-<wire x1="106.68" y1="113.03" x2="116.84" y2="113.03" width="0.1524" layer="91"/>
-<wire x1="116.84" y1="113.03" x2="116.84" y2="118.11" width="0.1524" layer="91"/>
-<junction x="106.68" y="113.03"/>
+<wire x1="106.68" y1="110.49" x2="106.68" y2="115.57" width="0.1524" layer="91"/>
 </segment>
 <segment>
 <pinref part="Q1" gate="G$1" pin="E"/>
@@ -5954,9 +5947,6 @@ VCC</text>
 <junction x="106.68" y="135.89"/>
 <pinref part="C2" gate="G$1" pin="+"/>
 <pinref part="L1" gate="G$1" pin="2"/>
-<wire x1="106.68" y1="127" x2="116.84" y2="127" width="0.1524" layer="91"/>
-<pinref part="C4" gate="G$1" pin="1"/>
-<wire x1="116.84" y1="127" x2="116.84" y2="125.73" width="0.1524" layer="91"/>
 </segment>
 <segment>
 <pinref part="AM2302" gate="G$1" pin="4"/>
