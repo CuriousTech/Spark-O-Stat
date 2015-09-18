@@ -1,10 +1,17 @@
 //  Sparkostat script running on PngMagic  http://www.curioustech.net/pngmagic.html
 //
+
 	spark = 'https://api.particle.io/v1/devices/'
-	deviceID = 'xxxxxxxxxxxxxxx'
-	token = 'xxxxxxxxxxxxxxxxxxxxxxxx'
+	deviceID = 'xxxxxxxxxxxxxxxxxxxxxxxx'
+	token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 	Pm.Echo()
+
+	eventUrl = spark + deviceID + '/events?access_token=' + token
+
+	kwh = 3600 // killowatt hours (compressor+fan)
+	ppkwh = 0.11593 // price per KWH
+	ppkwh  += 0.01494 + 0.00392 // surcharge, school, misc
 
 	modes = new Array('Off', 'Cool', 'Heat', 'Auto')
 
@@ -13,17 +20,16 @@
 	btnW = 40
 
 	if(Reg.overrideTemp == 0)
-		Reg.overrideTemp = 78
+		Reg.overrideTemp = -1.2
 
 	var cnt = (Math.random(100) * 10000).toFixed() // fix for cache
 
 	var settings
 
 	readingLogs = false
+	streaming = false
 
 	OnTimer()
-
-//	SetVar('notify', 'Test 1')  // test notification
 
 function OnClick(x, y) // when window is clicked
 {
@@ -32,6 +38,7 @@ function OnClick(x, y) // when window is clicked
 	x = Math.floor( (x - btnX) / btnW)
 	y = Math.floor( ((y - btnY) / 19))
 
+	if(y < 0) OnTimer() // reload if click above buttons
 	if(y < 0 || x < 0 || y>26 || x >3) return
 
 	code = (y*2)+x
@@ -49,7 +56,6 @@ function OnClick(x, y) // when window is clicked
 			break
 		case 3:		// Override
 			SetVar('override', Reg.overrideTemp * 10)
-			targetTemp = Reg.overrideTemp;
 			break
 		case 4:		// cool H up
 			setTemp(1, coolTempH + 0.1, 1); SetVar('cooltemph', (coolTempH * 10).toFixed())
@@ -120,7 +126,69 @@ function OnClick(x, y) // when window is clicked
 	}
 
 	Draw()
-	Pm.SetTimer(5*1000) // request update in 5 seconds
+	Pm.SetTimer(3*1000) // request update in 3 seconds
+}
+
+// Handle published events (sometimes event and JSON come in 2 parts)
+function OnCall(msg, data)
+{
+	switch(msg)
+	{
+		case 'HTTPDATA':
+			if(data.length == 1) break // keep-alive heartbeat
+//			Pm.Echo( ' Particle data(' + data.length + '): ' + data)
+			if(data == ':ok\n\n' )
+			{
+				Pm.Echo( ' Particle stream started')
+				break
+			}
+
+			if(data.indexOf('event') >= 0) // possibly just the event name
+			{
+				lines = data.split('\n')
+				event = lines[0].substr( lines[0].indexOf(':') + 2)
+				Pm.Echo('Event: '+  event.length + ' ' + event)
+			}
+
+			if( data.indexOf('}') > 0 ) // event+data or just data
+			{
+				data = data.substr( data.indexOf('{') ) // remove extra
+
+				Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
+						data.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + data + ')')
+
+				switch(event)
+				{
+					case 'spark/status':
+						Pm.Echo('Status ' + Json.data)
+						break
+					case 'spark/cc3000-patch-version':
+						Pm.Echo('Version update: ' + Json.data)
+						break
+					case 'modeChg':
+						str = Json.data
+						Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
+							str.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + str + ')')
+						Pm.Echo('Mode ' + Json.Mode)
+						Pm.Echo('Run ' + Json.Run)
+						Pm.Echo('Fan ' + Json.Fan)
+						OnTimer()  // read the rest of the data
+						break
+					default:
+						Pm.Echo('Unknown event: ' + event)
+						break
+				}
+			}
+			break
+		case 'HTTPCLOSE':
+			Pm.Echo( 'Particle disconected' )
+			streaming = false
+			Pm.SetTimer(20*1000)		// reconnect in 20 secs
+			break
+		default:
+			Pm.Echo('SR Unrecognised ' + msg)
+			break
+	}
 }
 
 // mimic thermostat
@@ -166,14 +234,14 @@ function setTemp( mode, Temp, hl)
 			save = coolTempH - coolTempL;
 			coolTempL = Math.max(heatTempH - 2, coolTempL);
 			coolTempH = coolTempL + save;
-			break;
+			break
 	}
 }
 
 function OnTimer()
 {
-	Pm.Echo()
 	Pm.SetTimer(4*60*1000)
+
 	if(!readingLogs)
 	{	if( !TestSpark() )	// this gets the settings var
 		{
@@ -189,6 +257,7 @@ function OnTimer()
 		fanMode = (settings >> 6) & 1
 		running = (settings>> 7) & 1
 		fan = (settings>> 8) & 1
+		ovrActive = (settings>> 9) & 1
 		eHeatThresh = (settings >> 10) & 0x3F
 		fanDelay = (settings >> 16) & 0xFF
 		cycleThresh = ((settings >> 24) & 0xFF) / 10
@@ -222,6 +291,10 @@ function OnTimer()
 		Draw()
 
 		LogTemps( inTemp, targetTemp, rh )
+		if(Pm.FindWindow( 'HVAC' ))
+		{
+			Pm.History( 'REFRESH' )
+		}
 	}
 
 	if( GetVar( 'log' ) )
@@ -240,6 +313,10 @@ function OnTimer()
 	{
 //		Pm.SetTimer(60*1000)
 		readingLogs = false
+
+		if( !streaming )
+			if( Http.Connect( eventUrl ) ) // Start the event stream
+				streaming = true
  	}
 }
 
@@ -248,7 +325,7 @@ function Draw()
 	Pm.Window('SparkRemote')
 
 	Gdi.Width = 208 // resize drawing area
-	Gdi.Height = 320
+	Gdi.Height = 338
 
 	Gdi.Clear(0) // transaprent
 
@@ -321,9 +398,17 @@ function Draw()
 	y += bh
 	Gdi.Text('ovr Time:', x, y); 	Gdi.Text(secsToTime(overrideTime) , x + 56, y)
 	y += bh
-	Gdi.Text('ovr Temp:', x, y);  Gdi.Text(Reg.overrideTemp.toFixed(1) + '°' , x + 112, y, 'Right')
+	a = Reg.overrideTemp
+	Gdi.Text('ovr Temp:', x, y);  Gdi.Text(a + '°' , x + 112, y, 'Right')
 
-	y += bh+2
+	y = Gdi.Height - 35
+
+	cost = ppkwh * runTotal / (1000*60*60) * kwh
+
+	Gdi.Text('Filter:', x, y); 	Gdi.Text(filterHours + ' h' , x + 36, y)
+	Gdi.Text('Cost:', x+90, y); 	Gdi.Text( '$' +cost.toFixed(2) , x + 130, y)
+
+	y += bh
 	Gdi.Text('Cyc:', x, y); 	Gdi.Text(secsToTime(cycleTimer) , x + 30, y)
 	Gdi.Text('Tot:', x+90, y); 	Gdi.Text(secsToTime(runTotal) , x + 120, y)
 
@@ -357,6 +442,12 @@ function ShadowText(str, x, y, clr)
 
 function secsToTime( elap )
 {
+	neg = ' '
+	if(elap < 0)
+	{
+		elap = -elap
+		neg = '-'
+	}
 	d = 0
 	m = 0
 	h   = Math.floor(elap / 3600)
@@ -373,21 +464,19 @@ function secsToTime( elap )
 		if(h == 0)
 		{
 			if( m < 10) m = '  ' + m
-			return '    ' + m +':'+s
+			return '   ' + neg + m +':'+s
 		}
 	}
 	if( m < 10) m = '0' + m
 	if( h < 10) h = '  ' + h
 	if(d) return d + 'd ' + h + 'h'
-	return h+':'+m+':'+s
+	return neg + h+':'+m+':'+s
 }
 
 function getLogs()
 {
-	for(;;)
+	while( GetVar( 'log' ) )
 	{
-		if( !GetVar( 'log' ) )
-			return;
 		res = ReadVar( 'result' )
 
 //Pm.Echo('log ' + res)
@@ -432,20 +521,19 @@ function TestSpark()	// async call for testing net connection so it doesn't free
 	xhr = new ActiveXObject( 'Microsoft.XMLHTTP' )
 	xhr.open('POST', spark + deviceID + '/getvar?access_token=' + token, false)
 	xhr.onreadystatechange = testcb
-	xhr.setRequestHeader('content-type', 'application/x-www-form-urlencoded')
+	xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded')
 	Pm.SetTimer(4*60*1000)
 	xhr.send( 'params=settings' )
-
+	cnt++
 	var JsonObj = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 		xhr.responseText.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + xhr.responseText + ')')
 
 	settings = JsonObj.return_value
-	res = JsonObj.connected
 
 //		Pm.Echo('JSON ' + xhr.responseText)
 
 	xhr = null
-	return res
+	return settings
 }
 
 function ReadVar(varName)
@@ -453,7 +541,7 @@ function ReadVar(varName)
 	xhr = new ActiveXObject( 'Microsoft.XMLHTTP' )
 	xhr.open('GET', spark + deviceID + '/' + varName + '?access_token=' + token + '&r=' + cnt, false)
 	xhr.onreadystatechange = testcb
-	xhr.setRequestHeader('content-type', 'application/x-www-form-urlencoded')
+	xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded')
 	xhr.send()
 
 	cnt++
