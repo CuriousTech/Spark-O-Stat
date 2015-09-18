@@ -874,7 +874,10 @@ void loop()
 	static int8_t lastHour;
 	static int8_t lastMode;
 	static bool bDown = false;
-	
+	static bool bRun = false;
+	static bool bFan = false;
+	char szPub[64];
+
 	if( touch.pressed() )
 	{
 		bDown = true;
@@ -921,12 +924,14 @@ void loop()
         displayTime();
         hvac.service();
 
-        if(hvac.getMode() != lastMode)   // erase prev highlight
-        {
-            lastMode = hvac.getMode();
-            drawButton(1, false, false);
-            drawButton(2, false, false);
-        }
+	if(hvac.getMode() != lastMode || hvac.getRunning() != bRun || bFan != hvac.m_bFanRunning)   // erase prev highlight
+	{
+		lastMode = hvac.getMode();
+		drawButton(1, false, false);
+		drawButton(2, false, false);
+		sprintf(szPub, "{\"Mode\": %u, \"Run\": %u, \"Fan\": %u}", lastMode, bRun = hvac.getRunning(), bFan = hvac.m_bFanRunning);
+		Spark.publish("modeChg", szPub);
+	}
 
         drawButton(4, false, false);     // target
 
