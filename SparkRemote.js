@@ -136,49 +136,9 @@ function OnCall(msg, data)
 	{
 		case 'HTTPDATA':
 			if(data.length == 1) break // keep-alive heartbeat
-//			Pm.Echo( ' Particle data(' + data.length + '): ' + data)
-			if(data == ':ok\n\n' )
-			{
-				Pm.Echo( ' Particle stream started')
-				break
-			}
-
-			if(data.indexOf('event') >= 0) // possibly just the event name
-			{
-				lines = data.split('\n')
-				event = lines[0].substr( lines[0].indexOf(':') + 2)
-				Pm.Echo('Event: '+  event.length + ' ' + event)
-			}
-
-			if( data.indexOf('}') > 0 ) // event+data or just data
-			{
-				data = data.substr( data.indexOf('{') ) // remove extra
-
-				Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
-						data.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + data + ')')
-
-				switch(event)
-				{
-					case 'spark/status':
-						Pm.Echo('Status ' + Json.data)
-						break
-					case 'spark/cc3000-patch-version':
-						Pm.Echo('Version update: ' + Json.data)
-						break
-					case 'modeChg':
-						str = Json.data
-						Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
-							str.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + str + ')')
-						Pm.Echo('Mode ' + Json.Mode)
-						Pm.Echo('Run ' + Json.Run)
-						Pm.Echo('Fan ' + Json.Fan)
-						OnTimer()  // read the rest of the data
-						break
-					default:
-						Pm.Echo('Unknown event: ' + event)
-						break
-				}
-			}
+			lines = data.split('\n')
+			for(i = 0; i < lines.length; i++)
+				procLine(lines[i])
 			break
 		case 'HTTPCLOSE':
 			Pm.Echo( 'Particle disconected' )
@@ -188,6 +148,57 @@ function OnCall(msg, data)
 		default:
 			Pm.Echo('SR Unrecognised ' + msg)
 			break
+	}
+}
+
+function procLine(data)
+{
+	if(data.length == 0) return
+//	Pm.Echo('Line: '+  data)
+	if(data == ':ok' )
+	{
+		Pm.Echo( ' Particle stream started')
+		return
+	}
+
+	if( data.indexOf( 'event' ) >= 0 )
+	{
+		event = data.substring( data.indexOf(':') + 2)
+		return
+	}
+
+	if( !data.indexOf('}') ) // no event or bad format?
+	{
+		Pm.Echo('Particle: Unexpected data: ' + data)
+		return
+	}
+
+	data = data.substr( data.indexOf('{') ) // remove the leading "data"
+//	Pm.Echo('Data: '+  data)
+
+	Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
+			data.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + data + ')')
+
+	switch(event)
+	{
+		case 'spark/status':
+			Pm.Echo('Status ' + Json.data) // online / offline status
+			online = (Json.data == 'online') ? true:false
+			break
+		case 'spark/cc3000-patch-version': // this posts every time the device comes online
+			Pm.Echo('cc3000 version: ' + Json.data)
+			cc3000version = Json.data
+			break
+		case 'modeChg':	// Mine.  mode/run/fan change
+			str = Json.data
+			Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
+				str.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + str + ')')
+			Pm.Echo('Mode = ' + Json.Mode + ' Run = ' + Json.Run + ' Fan = ' + Json.Fan)
+			OnTimer()  // read the rest of the data
+			break
+		default:
+			Pm.Echo('Unknown event: ' + event)
+			break	
 	}
 }
 
