@@ -25,6 +25,13 @@ enum Mode
 	Mode_Auto
 };
 
+enum HeatMode
+{
+	Heat_HP,
+	Heat_NG,
+	Heat_Auto
+};
+
 typedef struct EEConfig_
 {
 	uint16_t coolTemp[2];	// cool to temp *10 low/high
@@ -35,7 +42,7 @@ typedef struct EEConfig_
 	uint16_t cycleMin;	// min time to run
 	uint16_t cycleMax;	// max time to run
 	uint16_t idleMin;	// min time to not run
-	uint16_t filterHours;	// resettable hours run timer (200 hours is standard change interval)
+	uint16_t filterMinutes; // resettable minutes run timer (200 hours is standard change interval)
 	uint16_t fanPostDelay;	// delay to run auto fan after heat/cool stops
 	uint16_t overrideTime;	// time used for an override
 	uint8_t  heatMode;	// heating mode (gas, electric)
@@ -47,7 +54,7 @@ class HVAC
 {
 public:
 	HVAC(void);
-	void	service(void);			// call once per second
+	void	service(void);		// call once per second
 	bool    getRunning(void);       // return running
 	int8_t  getMode(void);          // actual mode
 	uint8_t getHeatMode(void);      // heat mode
@@ -56,7 +63,7 @@ public:
 	void	setMode(int8_t mode);	// request new mode; see enum Mode
 	void    setHeatMode(uint8_t mode); // heat mode
 	bool    getFan(void);           // is fan on
-	void	setFan(bool on);		// auto/on mode
+	void	setFan(bool on);	// auto/on mode
 	void    fanTimeAccum(void);
 	int16_t getSetTemp(int8_t mode, int8_t hl); // get temp set for a mode (cool/heat)
 	void	setTemp(int8_t mode, int16_t Temp, int8_t hl); // set temp for a mode
