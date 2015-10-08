@@ -24,7 +24,8 @@
 
 //#define T_CAL     // switch to touchscreen calibration mode (draws hits and 4 temp buttons are calibration values adjusted by thumbwheel)
 
-#define DHT_TEMP_ADJUST (0)  // Adjust indoor temp by 0 degress (-20 = -2.0)
+#define DHT_TEMP_ADJUST (-3.0)   // Adjust indoor temp by degrees
+#define DHT_RH_ADJUST (3.0)      // Adjust indoor Rh by %
 #define ONE_DAY_MILLIS (24 * 60 * 60 * 1000)
 unsigned long lastSync;
 
@@ -126,16 +127,16 @@ void xml_callback(int8_t item, int8_t idx, char *p)
 
 	switch(item)
 	{
-		case 0:                             // valid time
-			if(!idx)                        // first item isn't really data.  Use for past data
+		case 0					// valid time
+			if(!idx)			// first item isn't really data.  Use for past data
 			{
-				hO = 0;                     // reset hour offset
+				hO = 0;			// reset hour offset
 				lastd = Time.day();
 				break;
 			}
-			d = atoi(p + 8);                // 2014-mm-ddThh:00:00-tz:00
+			d = atoi(p + 8);	// 2014-mm-ddThh:00:00-tz:00
 			h = atoi(p + 11);
-			if(d != lastd) hO += 24;        // change to hours offset
+			if(d != lastd) hO += 24;	// change to hours offset
 			lastd = d;
 			hvac.m_fcData[idx-1].h = h + hO;
 
@@ -486,12 +487,11 @@ void drawButton(int8_t btn, bool bDown, bool bFast) // draw a button with presse
             bDeg = true;
             break;
         case 6: // in temp
-//            cvtNum(szText, hvac.m_inTemp );         // display adjusted indoor temp
-            cvtNum(szText, (int)(DHT.getFahrenheit() * 10) );         // display adjusted indoor temp
+            cvtNum(szText, (int)((DHT.getFahrenheit() + DHT_TEMP_ADJUST) * 10) );         // display adjusted indoor temp
             bDeg = true;
             break;
         case 7: // in rh
-            cvtNum(szText, (int)(DHT.getHumidity() * 10) );
+            cvtNum(szText, (int)((DHT.getHumidity() + DHT_RH_ADJUST) * 10) );
             szText[5] = '%';
             szText[6] = 0;
             break;
@@ -834,9 +834,9 @@ void ReadEE()   // read EEPROM on startup
 //------------------------------
 void setup()
 {
-	Spark.function("setvar", sf_setVar);
-	Spark.function("getvar", sf_getVar);
-	Spark.variable("result", hvac.m_szResult, STRING);
+	Particle.function("setvar", sf_setVar);
+	Particle.function("getvar", sf_getVar);
+	Particle.variable("result", hvac.m_szResult, STRING);
 	Serial.begin(9600);
 	
 	ReadEE();
@@ -876,7 +876,7 @@ void loop()
 	static bool bDown = false;
 	static bool bRun = false;
 	static bool bFan = false;
-	char szPub[64];
+	char szPub[128];
 
 	if( touch.pressed() )
 	{
@@ -898,7 +898,7 @@ void loop()
 
         if (millis() - lastSync >= ONE_DAY_MILLIS)
         {
-            Spark.syncTime();       // time sync every 24 hours
+            Particle.syncTime();       // time sync every 24 hours
             lastSync = millis();
         }
 
@@ -918,82 +918,80 @@ void loop()
                 delay(200);
                 tone(D1, 3200, 150);
             }
+		}
 
+		displayTime();
+		hvac.service();
+
+		if(hvac.getMode() != lastMode || hvac.getRunning() != bRun || bFan != hvac.m_bFanRunning)   // erase prev highlight
+		{
+			lastMode = hvac.getMode();
+			drawButton(1, false, false);
+			drawButton(2, false, false);
+			sprintf(szPub, "{\"Mode\": %u, \"Run\": %u, \"Fan\": %u}", lastMode, bRun = hvac.getRunning(), bFan = hvac.m_bFanRunning);
+			Particle.publish("modeChg", szPub);
+		}
+	
+		drawButton(4, false, false);     // target
+	
+		displayHvacPins();
+	
+		if(bDHT)    // this is 1 sec after acquire
+		{
+			bDHT = false;
+			if(DHT.getStatus()  == DHTLIB_OK)
+			{
+				hvac.updateIndoorTemp( (int)((DHT.getFahrenheit() + DHT_TEMP_ADJUST) * 10), (int)((DHT.getHumidity()+DHT_RH_ADJUST) * 10) );
+	//			Serial.print("Temp: ");
+	//			Serial.println( DHT.getFahrenheit() );
+				drawButton(6, false, true);     // in temp
+				drawButton(7, false, true);     // rh
+			}
+	
+			lUpdateDHT = millis();
+		}
+		else if(millis() - lUpdateDHT >= DHT_PERIOD)
+		{
+			DHT.acquire();
+			bDHT = true;
+		}
+	
+		if(bReading)
+		{
+			bReading = xml.service(tags);
+			if(!bReading)
+			{
+//          Serial.print("XMLReader done: Status = ");
+//          Serial.println(xml.getStatus());
+				switch(xml.getStatus())
+				{
+					case XML_DONE:
+						drawForecast();
+						break;
+					case  XML_TIMEOUT:
+					default:
+						FcstInterval = 5 * 60;    // retry in 5 mins
+						break;
+				}
+			}
+		}
+
+		if(millis() - lUpdateFcst >= (FcstInterval * 1000) )
+		{
+		    GetForecast();
+		    UpdateEE();          // EE updates will go here for now (every 3 hours)
+		}
+		
+		if(millis() - lUpdateOutTemp >= (5 * 60 * 1000) )        // update every 5 mins
+		{
+		    displayOutTemp();
+		}
+		
+		if(millis() - lBacklightTimer >= (blankSecs*1000) )     // screen blanker
+		{
+		    Backlight(dimLevel);
+		    bScreenOn = false;
+		}
 	}
-
-        displayTime();
-        hvac.service();
-
-	if(hvac.getMode() != lastMode || hvac.getRunning() != bRun || bFan != hvac.m_bFanRunning)   // erase prev highlight
-	{
-		lastMode = hvac.getMode();
-		drawButton(1, false, false);
-		drawButton(2, false, false);
-		sprintf(szPub, "{\"Mode\": %u, \"Run\": %u, \"Fan\": %u}", lastMode, bRun = hvac.getRunning(), bFan = hvac.m_bFanRunning);
-		Spark.publish("modeChg", szPub);
-	}
-
-        drawButton(4, false, false);     // target
-
-        displayHvacPins();
-
-        if(bDHT)    // this is 1 sec after acquire
-        {
-            bDHT = false;
-            if(DHT.getStatus()  == DHTLIB_OK)
-            {
-                hvac.updateIndoorTemp( (int)(DHT.getFahrenheit() * 10) + DHT_TEMP_ADJUST, (int)(DHT.getHumidity() * 10) );
-
-//                Serial.print("Temp: ");
-//                Serial.println( DHT.getFahrenheit() );
-                drawButton(6, false, true);     // in temp
-                drawButton(7, false, true);     // rh
-            }
-
-            lUpdateDHT = millis();
-        }
-        else if(millis() - lUpdateDHT >= DHT_PERIOD)
-        {
-		DHT.acquire();
-		bDHT = true;
-        }
-
-        if(bReading)
-        {
-            bReading = xml.service(tags);
-            if(!bReading)
-            {
-//              Serial.print("XMLReader done: Status = ");
-//              Serial.println(xml.getStatus());
-                switch(xml.getStatus())
-                {
-                    case XML_DONE:
-                        drawForecast();
-                        break;
-                    case  XML_TIMEOUT:
-                    default:
-                        FcstInterval = 5 * 60;    // retry in 5 mins
-                        break;
-                }
-            }
-        }
-
-        if(millis() - lUpdateFcst >= (FcstInterval * 1000) )
-        {
-            GetForecast();
-            UpdateEE();          // EE updates will go here for now (every 3 hours)
-        }
-
-        if(millis() - lUpdateOutTemp >= (5 * 60 * 1000) )        // update every 5 mins
-        {
-            displayOutTemp();
-        }
-
-        if(millis() - lBacklightTimer >= (blankSecs*1000) )     // screen blanker
-        {
-            Backlight(dimLevel);
-            bScreenOn = false;
-        }
-    }
-    delay(50);
+	delay(50);
 }
