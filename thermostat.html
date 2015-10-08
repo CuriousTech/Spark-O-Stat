@@ -1,11 +1,13 @@
+<!DOCTYPE html>
 <html>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 <head>
 
 <title>SparkOstat</title>
 
 <style type="text/css">
 .style1 {
-	border: 1px solid #000000;
+	border-width: 0;
 }
 .style2 {
 	text-align: right;
@@ -15,6 +17,15 @@
 }
 .style4 {
 	text-align: right;
+	background-color: #C0C0C0;
+}
+.style5 {
+	border-width: 0;
+	background-color: #00FF00;
+}
+.style6 {
+	border-style: solid;
+	border-width: 1px;
 	background-color: #C0C0C0;
 }
 </style>
@@ -60,11 +71,11 @@ function readVar(varName){
    var xmlHttp = setAjax();
    xmlHttp.onreadystatechange =  function(){
       if(xmlHttp.readyState > 0 && xmlHttp.readyState < 4){
-          document.getElementById('myDivId').innerHTML=loadingmessage;
+//          document.getElementById('myDivId').innerHTML=loadingmessage;
       }
       if (xmlHttp.readyState == 4) {
 		var JsonObj = JSON.parse(xmlHttp.responseText)
-		document.getElementById('myDivId').innerHTML = JsonObj.result;
+//		document.getElementById('myDivId').innerHTML = JsonObj.result;
       }
    }
    url = 'https://api.spark.io/v1/devices/' + document.all.myDeviceId.value + '/' + varName + '?access_token=' + document.all.myToken.value
@@ -79,13 +90,12 @@ function getVar(varName){
    var xmlHttp = setAjax();
    xmlHttp.onreadystatechange =  function(){
       if(xmlHttp.readyState > 0 && xmlHttp.readyState < 4){
-          document.getElementById('myDivId').innerHTML=loadingmessage;
+//		document.getElementById('myDivId').innerHTML=loadingmessage;
       }
       if (xmlHttp.readyState == 4) {
-             // this is where the magic occcurs
-             
-          var JsonObj = JSON.parse(xmlHttp.responseText)
-          document.getElementById('myDivId').innerHTML= JsonObj.return_value
+      	// this is where the magic occcurs
+		var JsonObj = JSON.parse(xmlHttp.responseText)
+//		document.getElementById('myDivId').innerHTML= JsonObj.return_value
       }
    }
    url = 'https://api.spark.io/v1/devices/' + document.all.myDeviceId.value + '/getvar?access_token=' + document.all.myToken.value
@@ -100,13 +110,12 @@ function setVar(varName, value){
    var xmlHttp = setAjax();
    xmlHttp.onreadystatechange =  function(){
       if(xmlHttp.readyState > 0 && xmlHttp.readyState < 4){
-          document.getElementById('myDivId').innerHTML=loadingmessage;
+//		document.getElementById('myDivId').innerHTML=loadingmessage;
       }
       if (xmlHttp.readyState == 4) {
-             // this is where the magic occcurs
-             
+		// this is where the magic occcurs
 		var myJsonObject = JSON.parse(xmlHttp.responseText)
-		document.getElementById('myDivId').innerHTML = myJsonObject.return_value
+//		document.getElementById('myDivId').innerHTML = myJsonObject.return_value
       }
    }
    url = 'https://api.spark.io/v1/devices/' + document.all.myDeviceId.value + '/setvar?access_token=' + document.all.myToken.value
@@ -124,117 +133,144 @@ function getAll()
 	fanMode = (settings >> 6) & 1
 	running = (settings>> 7) & 1
 	fan = (settings>> 8) & 1
+	ovrActive = (settings>> 9) & 1
 //	eHeatThresh = (settings >> 10) & 0x3F
-	document.getElementById('fandelay').value = (settings >> 16) & 0xFF
-	document.getElementById('thresh').value = ((settings >> 24) & 0xFF) / 10
+	document.all.fandelay.value = (settings >> 16) & 0xFF
+	document.all.thresh.value = ((settings >> 24) & 0xFF) / 10
 
-	document.getElementById('fan').innerHTML = fan ? "Fan On" : "Fan Off"
-	document.getElementById('fanmode').innerHTML = fanMode ? "On" : "Auto"
+	document.all.fan.innerHTML = fan ? "Fan On" : "Fan Off"
+	document.all.fanCell.setAttribute('class', fan ? 'style5' : 'style1');
+
+	document.all.fanmode.innerHTML = fanMode ? "On" : "Auto"
 	m = (mode == 4) ? autoMode : mode
-	document.getElementById('run').innerHTML = running ? modes[m] : "Idle"
-	document.getElementById('mode').innerHTML = modes[mode]
-	document.getElementById('heatmode').innerHTML = heatmodes[heatMode]
+	document.all.run.innerHTML = running ? modes[m] : "Idle"
+	document.all.runCell.setAttribute('class', running ? 'style5' : 'style1');
 
+	document.all.mode.innerHTML = modes[mode]
+	document.all.heatmode.innerHTML = heatmodes[heatMode]
 
 	res = readVar( 'result' )	// result set by settings call
 	Json = JSON.parse(res)
 
-	document.getElementById('cooll').value = +Json.c0 / 10
-	document.getElementById('coolh').value = +Json.c1 / 10
-	document.getElementById('heatl').value = +Json.h0 / 10
-	document.getElementById('heath').value = +Json.h1 / 10
-	document.getElementById('intemp').innerHTML = +Json.it / 10
-	document.getElementById('target').innerHTML = +Json.tt / 10
-	document.getElementById('idlemin').value = +Json.im
-	document.getElementById('cycmin').value = +Json.cn
-	document.getElementById('cycmax').value = +Json.cx
-//	document.getElementById('filterhours').innerHTML = +Json.fh
-	document.getElementById('outtemp').innerHTML = +Json.ot / 10
+	document.all.cooll.value = +Json.c0 / 10
+	document.all.coolh.value = +Json.c1 / 10
+	document.all.heatl.value = +Json.h0 / 10
+	document.all.heath.value = +Json.h1 / 10
+	document.all.intemp.innerHTML = +Json.it / 10
+	document.all.target.innerHTML = +Json.tt / 10
+	document.all.idlemin.value = +Json.im
+	document.all.cycmin.value = +Json.cn
+	document.all.cycmax.value = +Json.cx
+//	document.all.filtermins.innerHTML = +Json.fh
+	document.all.outtemp.innerHTML = +Json.ot / 10
 //	outFL = +Json.ol
 //	outFH = +Json.oh
-	document.getElementById('cyctimer').innerHTML = secsToTime( +Json.ct )
-//	document.getElementById('fantimer').innerHTML = +Json.ft
-	document.getElementById('runtotal').innerHTML = secsToTime( +Json.rt )
+	document.all.cyctimer.innerHTML = secsToTime( +Json.ct )
+//	document.all.fantimer.innerHTML = +Json.ft
+	document.all.runtotal.innerHTML = secsToTime( +Json.rt )
 //	tempDiffTotal = +Json.td
-	document.getElementById('ovrtime').value = +Json.ov
-	document.getElementById('rh').innerHTML = +Json.rh / 10
+	document.all.ovrtime.value = +Json.ov
+	document.all.rh.innerHTML = +Json.rh / 10
+
+	if( +document.all.ovrtemp.value == 0) // set a better default
+		document.all.ovrtemp.value = -1.0
+	document.all.ovrCell.setAttribute('class', ovrActive ? 'style5' : 'style1');
 }
 
 function togglefan()
 {
 	fanMode = !fanMode
 	setVar('fanmode', fanMode ? 1:0)
-	document.getElementById('fanmode').innerHTML = fanMode ? "On" : "Auto"
-	document.getElementById('fan').innerHTML = "Fan " + (fanMode ? "On" : (fan ? "Off":"On"))
+	document.all.fanmode.innerHTML = fanMode ? "On" : "Auto"
+	document.all.fan.innerHTML = "Fan " + (fanMode ? "On" : (fan ? "Off":"On"))
+	document.all.fanCell.setAttribute('class', fan ? 'style5' : 'style1');
 }
 
 function setMode(m)
 {
 	mode = m
 	setVar('mode', mode)
-	document.getElementById('mode').innerHTML = modes[mode]
+	document.all.mode.innerHTML = modes[mode]
 }
 
 function setHeatMode(m)
 {
 	heatMode = m
 	setVar('heatmode', heatMode)
-	document.getElementById('heatmode').innerHTML = heatmodes[heatMode]
+	document.all.heatmode.innerHTML = heatmodes[heatMode]
 }
 
 function setCoolHi()
 {
-	setVar('cooltemph', (+document.getElementById('coolh').value * 10).toFixed() )
+	setVar('cooltemph', (+document.all.coolh.value * 10).toFixed() )
 }
 
 function setCoolLo()
 {
-	setVar('cooltempl', (+document.getElementById('cooll').value * 10).toFixed() )
+	setVar('cooltempl', (+document.all.cooll.value * 10).toFixed() )
+}
+
+function incCool(n)
+{
+	document.all.coolh.value = +document.all.coolh.value + n
+	document.all.cooll.value = +document.all.cooll.value + n
+
+	setVar('cooltemph', (+document.all.coolh.value * 10).toFixed() )
+	setVar('cooltempl', (+document.all.cooll.value * 10).toFixed() )
 }
 
 function setHeatHi()
 {
-	setVar('heattempl', (+document.getElementById('heath').value * 10).toFixed() )
+	setVar('heattempl', (+document.all.heath.value * 10).toFixed() )
 }
 
 function setHeatLo()
 {
-	setVar('heattempl', (+document.getElementById('heatl').value * 10).toFixed() )
+	setVar('heattempl', (+document.all.heatl.value * 10).toFixed() )
+}
+
+function incHeat(n)
+{
+	document.all.heath.value = +document.all.heath.value + n
+	document.all.heatl.value = +document.all.heatl.value + n
+
+	setVar('heattemph', (+document.all.heath.value * 10).toFixed() )
+	setVar('heattempl', (+document.all.heatl.value * 10).toFixed() )
 }
 
 function setThresh()
 {
-	setVar('cyclethresh', (+document.getElementById('thresh').value * 10).toFixed() )
+	setVar('cyclethresh', (+document.all.thresh.value * 10).toFixed() )
 }
 
 function setFeanDelay()
 {
-	setVar('fanpostdelay', +document.getElementById('fandelay').value)
+	setVar('fanpostdelay', +document.all.fandelay.value)
 }
 
 function setIdleMin()
 {
-	setVar('idlemin', document.getElementById('idlemin').value)
+	setVar('idlemin', document.all.idlemin.value)
 }
 
 function setCycMin()
 {
-	setVar('cyclemin', document.getElementById('cycmin').value)
+	setVar('cyclemin', document.all.cycmin.value)
 }
 
 function setCycMax()
 {
-	setVar('cyclemax', document.getElementById('cycmax').value)
+	setVar('cyclemax', document.all.cycmax.value)
 }
 
 function setOvrTime()
 {
-	setVar('overridetime', document.getElementById('ovrtime').value)
+	setVar('overridetime', document.all.ovrtime.value)
 }
 
 function setOvrTemp()
 {
-	setVar('override', (+document.getElementById('ovrtemp').value *10).toFixed() )
+	setVar('override', (+document.all.ovrtemp.value *10).toFixed() )
 }
 
 function cancelOvr()
@@ -272,28 +308,39 @@ function secsToTime( elap )
 //--></script>
 
 </head>
-
 <body onload="{
-   myStorage1 = localStorage.getItem('myStoredText1')
-   if(myStorage1  != null){
-      document.all.myToken.style.visibility = 'hidden'  // hide sensitive data. remove these if irritating
-      document.all.myDeviceId.style.visibility = 'hidden'
-      document.getElementById('myToken').value = myStorage1 
-    }
+  myStorage1 = localStorage.getItem('myStoredText1')
+  if(myStorage1  != null){
+	document.all.myToken.style.visibility = 'hidden'  // hide sensitive data. remove these if irritating
+	document.all.myDeviceId.style.visibility = 'hidden'
+	document.getElementById('myToken').value = myStorage1
+  }
     
-    myStorage2 = localStorage.getItem('myStoredText2')
-    if(myStorage2  != null){
-       document.getElementById('myDeviceId').value = myStorage2  
-    }   
+  myStorage2 = localStorage.getItem('myStoredText2')
+  if(myStorage2  != null){
+	document.getElementById('myDeviceId').value = myStorage2
+	getAll()
+  }   
+  myStorage3 = localStorage.getItem('myStoredText3')
+  if(myStorage3  != null){
+	document.getElementById('ovrtemp').value = myStorage3
+  }
 }">
 <strong><em>CuriousTech SparkOstat Remote</em></strong><br>
-<br>
-Device ID:&nbsp;&nbsp;&nbsp;&nbsp; 
-<input id="myDeviceId" name="myCoreID" type=text size=50 placeholder="78dd12345678123456" style="width: 269px"><br>
-Access Token:<input id="myToken" name="access_token" type=text size=50 placeholder="5622ce6bba702ef6bd3456d5ed26aaa4a28d7c9" style="width: 264px"><br>
-<br>
+<table style="width: 320px">
+	<tr>
+		<td style="width: 70px">Device</td>
+		<td>
+<input id="myDeviceId" name="myCoreID" type=text size=50 placeholder="78dd12345678123456" style="width: 265px"></td>
+	</tr>
+	<tr>
+		<td style="width: 70px">Token</td>
+		<td>
+<input id="myToken" name="access_token" type=text size=50 placeholder="5622ce6bba702ef6bd3456d5ed26aaa4a28d7c9" style="width: 265px"></td>
+	</tr>
+</table>
 <input type="button" value="Store ID and Token" onClick="{
-   localStorage.setItem('myStoredText1', document.all.myToken.value)   
+   localStorage.setItem('myStoredText1', document.all.myToken.value)
    localStorage.setItem('myStoredText2', document.all.myDeviceId.value)
    alert( +document.all.myDeviceId.value + ' ' + document.all.myToken.value + ' \nHas been stored')
 }">
@@ -312,26 +359,26 @@ Access Token:<input id="myToken" name="access_token" type=text size=50 placehold
 	<tr>
 		<td class="style3">In</td>
 		<td class="style4"><div name="intemp" id="intemp" class="style2">in</div></td>
-		<td class="style3">°</td>
+		<td class="style3">&deg</td>
 		<td class="style3">Trg</td>
 		<td class="style4"><div name="target" id="target" class="style2">trg</div></td>
-		<td class="style3">°</td>
+		<td class="style3">&deg</td>
 		<td class="style4"><div name="rh" id="rh" class="style2">rh</div></td>
 		<td class="style3">%</td>
 		<td class="style3">Out</td>
 		<td class="style4"><div name="outtemp" id="outtemp" class="style2">out</div></td>
-		<td class="style3">°</td>
+		<td class="style3">&deg</td>
 	</tr>
 </table>
 <br>
-<table style="width: 360px" class="style1" cellspacing="0">
+<table style="width: 360px" class="style6" cellspacing="1" cellpadding="0">
 	<tr>
-		<td style="width: 81px" class="style1"><div name="fan1" id="fan">Fan Off</div></td>
+		<td style="width: 81px" id="fanCell" class="style1"><div name="fan1" id="fan">Fan Off</div></td>
 		<td style="width: 44px" class="style1"><div name="fan" id="fanmode">Auto</div></td>
 		<td style="width: 200px" class="style1"><input type="button" value="Toggle" onClick="{togglefan()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 81px" class="style1">Run</td>
+		<td style="width: 81px" id="runCell" class="style1">Run</td>
 		<td style="width: 44px" class="style1"><div name="run" id="run">off</div></td>
 		<td style="width: 244px" class="style1">
 		&nbsp;</td>
@@ -358,22 +405,22 @@ Access Token:<input id="myToken" name="access_token" type=text size=50 placehold
 	<tr>
 		<td style="width: 81px" class="style1">Cool Hi</td>
 		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="coolh"></td>
-		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCoolHi()}"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCoolHi()}"><input type="button" value="+1" onClick="{incCool(1)}"></td>
 	</tr>
 	<tr>
 		<td style="width: 81px" class="style1">Cool Lo</td>
 		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="cooll"></td>
-		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCoolLo()}"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCoolLo()}"><input type="button" value="-1" onClick="{incCool(-1)}"></td>
 	</tr>
 	<tr>
 		<td style="width: 81px" class="style1">Heat Hi</td>
 		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="heath"></td>
-		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setHeatHi()}"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setHeatHi()}"><input type="button" value="+1" onClick="{incHeat(1)}"></td>
 	</tr>
 	<tr>
 		<td style="width: 81px" class="style1">Heat Lo</td>
 		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="heatl"></td>
-		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setHeatLo()}"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setHeatLo()}"><input type="button" value="-1" onClick="{incHeat(-1)}"></td>
 	</tr>
 	<tr>
 		<td style="width: 81px" class="style1">Threshold</td>
@@ -406,9 +453,11 @@ Access Token:<input id="myToken" name="access_token" type=text size=50 placehold
 		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setOvrTime()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 81px" class="style1">ovrTemp</td>
+		<td style="width: 81px" id="ovrCell" class="style1">ovrTemp</td>
 		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="ovrtemp"></td>
-		<td style="width: 200px" class="style1"><input type="button" value="Start" onClick="{setOvrTemp()}">
+		<td style="width: 200px" class="style1"><input type="button" value="Start" onClick="{
+		localStorage.setItem('myStoredText3', document.all.ovrtemp.value)
+		setOvrTemp()}">
 		<input type="button" value="Cancel" onClick="{cancelOvr()}">
 		</td>
 	</tr>
@@ -426,21 +475,15 @@ Access Token:<input id="myToken" name="access_token" type=text size=50 placehold
 </table>
 <br>
 <input type="button" value="Poll" onClick="{
-    if(document.all.myPoll.value < '5'){document.all.myPoll.value = 5}
+    if(document.all.myPoll.value < 5){document.all.myPoll.value = 5}
     getAll()
     clearInterval(document.myPollSave)
-    document.myPollSave = setInterval('getAll()',document.all.myPoll.value*1000)
+    document.myPollSave = setInterval('getAll();',document.all.myPoll.value*1000)
 }">
 every <input type=text size=5 value=20 id="myPoll">Seconds
 
 <input type="button" value="Stop" onClick="{
     clearInterval(document.myPollSave)
 }">
-
-<br><br>
-
-JSON response:<br>
-<div width="400" height="200" name="myDivName" id="myDivId"> ............................................................................................................................... </div><br>
 </body>
 </html>
-
