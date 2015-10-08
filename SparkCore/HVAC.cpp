@@ -17,7 +17,7 @@
 HVAC::HVAC()
 {
 	m_EE.fanPostDelay = 120; 	// 90 seconds after compressor stops
-	m_EE.filterHours = 0;
+	m_EE.filterMinutes = 0;
 	m_EE.cycleMin = 60;		    // 60 seconds minimum for a cycle
 	m_EE.cycleMax = 60*15;		// 15 minutes maximun for a cycle
 	m_EE.idleMin = 60*5;		// 5 minutes minimum between cycles
@@ -67,10 +67,10 @@ void HVAC::fanTimeAccum()
 	static uint16_t nSecs = 0;
 
 	nSecs += m_fanOnTimer;  // add last run time to total counter
-	if(nSecs >= 60 * 60)    // increment filter hours
+	while(nSecs >= 60)    // increment filter minutes
 	{
-		m_EE.filterHours++;
-		nSecs -= 60*60;     // and subtract an hour
+		m_EE.filterMinutes++;
+		nSecs -= 60;     // and subtract a minute
 	}
 }
 
@@ -123,13 +123,13 @@ void HVAC::service()
 			m_bStop = true;
 		if(m_idleTimer >= 5)
 		{
-            m_EE.heatMode = m_setHeat;
+			m_EE.heatMode = m_setHeat;
 			m_EE.Mode = m_setMode;	        // User may be cycling through modes (give 5s)
 			calcTargetTemp(m_EE.Mode);
 		}
 	}
 
-	int8_t h = (m_EE.heatMode == 2) ? m_AutoHeat : m_EE.heatMode;
+	int8_t h = (m_EE.heatMode == Heat_Auto) ? m_AutoHeat : m_EE.heatMode;
 
 	if(m_bStart && !m_bRunning)	            // Start signal occurred
 	{
@@ -259,7 +259,7 @@ void HVAC::tempCheck()
 
 bool HVAC::preCalcCycle(int8_t mode)
 {
-	int16_t diff = m_inTemp - m_outTemp;            // indoor/outdoor difference
+//	int16_t diff = m_inTemp - m_outTemp;            // indoor/outdoor difference
 
 	bool bRet = false;
 	
@@ -292,12 +292,12 @@ bool HVAC::preCalcCycle(int8_t mode)
 //				Serial.println("Auto heat");
 				m_AutoMode = Mode_Heat;
 				calcTargetTemp(Mode_Heat);
-				if(m_EE.heatMode == 2)
+				if(m_EE.heatMode == Heat_Auto)
 				{
 					if(m_inTemp < m_outTemp - (m_EE.eHeatThresh * 10)) 	// Use gas when efficiency too low for pump
-						m_AutoHeat = 1;
+						m_AutoHeat = Heat_NG;
 					else
-						m_AutoHeat = 0;
+						m_AutoHeat = Heat_HP;
 				}
 				bRet = true;
 			}
@@ -411,9 +411,11 @@ void HVAC::analyze()
 	if(i < 32)
 	{
 		m_logs[i].time = Time.now();
-		m_logs[i].mode = m_EE.Mode;
-		if(m_EE.Mode == Mode_Auto)
-			m_logs[i].mode |= (m_AutoMode << 4);
+
+		m_logs[i].mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode; // convert auto to just cool / heat
+		if(m_logs[i].mode == Mode_Heat && ( m_EE.heatMode == Heat_NG || (m_EE.heatMode == Heat_Auto && m_AutoHeat == Heat_NG) ) )  // convert any NG mode to 3
+			m_logs[i].mode = 3; // so logs will only be 1, 2 or 3.
+
 		m_logs[i].secs = m_cycleTimer;
 		m_logs[i].t1 = m_startingTemp;
 		m_logs[i].rh1 = m_startingRh;
@@ -572,10 +574,8 @@ void HVAC::updatePeaks(int8_t min, int8_t max)
 {
 	if(m_outMax[0] != -50)      // preserve peaks longer
 	{
-		if(m_outMax[0] != m_outMax[1])
-			m_outMax[0] = m_outMax[1];
-		if(m_outMin[0] != m_outMin[1])
-			m_outMin[0] = m_outMin[1];
+		m_outMax[0] = m_outMax[1];
+		m_outMin[0] = m_outMin[1];
 	}
 	else                        // initial value
 	{
@@ -589,12 +589,12 @@ void HVAC::updatePeaks(int8_t min, int8_t max)
 
 void HVAC::resetFilter()
 {
-	m_EE.filterHours = 0;
+	m_EE.filterMinutes = 0;
 }
 
 bool HVAC::checkFilter(void)
 {
-	return (m_EE.filterHours >= 200);
+	return (m_EE.filterHours >= (60*200) );
 }
 
 void HVAC::resetTotal()
@@ -649,7 +649,7 @@ int HVAC::getVar(String s)
 			sprintf(m_szResult, "{\"c0\":%d,\"c1\":%d,\"h0\":%d,\"h1\":%d,\"it\":%d,\"tt\":%d,\"im\":%d,\"cn\":%d,\"cx\":%d,\"fh\":%d,\"ot\":%d,\"ol\":%d,\"oh\":%d,\"ct\":%d,\"ft\":%d,\"rt\":%d,\"td\":%d,\"ov\":%d,\"rh\":%d}",
 			// 160-191
 			m_EE.coolTemp[0], m_EE.coolTemp[1], m_EE.heatTemp[0], m_EE.heatTemp[1],
-			m_inTemp, m_targetTemp, m_EE.idleMin, m_EE.cycleMin, m_EE.cycleMax, m_EE.filterHours,
+			m_inTemp, m_targetTemp, m_EE.idleMin, m_EE.cycleMin, m_EE.cycleMax, m_EE.filterMinutes,
 			m_outTemp, m_outMin[1], m_outMax[1], m_cycleTimer, m_fanOnTimer, m_runTotal, m_tempDiffTotal, m_EE.overrideTime,m_rh);
 
 			break;
