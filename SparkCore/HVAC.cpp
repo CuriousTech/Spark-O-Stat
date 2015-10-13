@@ -12,8 +12,6 @@
 #include "HVAC.h"
 #include "math.h"
 
-//#define SIM
-
 HVAC::HVAC()
 {
 	m_EE.fanPostDelay = 120; 	// 90 seconds after compressor stops
@@ -32,10 +30,10 @@ HVAC::HVAC()
 
 	memset(m_fcData, -1, sizeof(m_fcData)); // invalidate forecast
 
-//	m_fcPeaks[0].h = -50		// set as invalid
-
 	m_outMax[0] = -50;		// set as invalid
 	m_outMax[1] = -50;		// set as invalid
+
+	m_remoteTimeout = 60 * 30;	// 30 minutes default
 
 	pinMode(P_FAN, OUTPUT);
 	pinMode(P_COOL, OUTPUT);
@@ -94,6 +92,10 @@ void HVAC::service()
 			if(!m_bRunning)			        // Ensure system isn't running
 				fanSwitch(false);
 	}
+	if(m_remoteTimer)				// remote temperature override timer
+	{
+		m_remoteTimer--;
+	}
 
 	if(m_overrideTimer)
 	{
@@ -107,9 +109,9 @@ void HVAC::service()
 	if(m_bRunning)
 	{
 		m_runTotal++;
-		if(++m_cycleTimer < 20)		        // Block changes for at least 20 seconds
+		if(++m_cycleTimer < 20)			// Block changes for at least 20 seconds
 			return;
-		if(m_cycleTimer >= m_EE.cycleMax)   // running too long (todo: skip for eHeat?)
+		if(m_cycleTimer >= m_EE.cycleMax	// running too long (todo: skip for eHeat?)
 			m_bStop = true;
 	}
 	else
@@ -198,9 +200,6 @@ void HVAC::service()
 		analyze();
 	}
 
-#ifdef SIM
-	simulator();
-#endif
 	tempCheck();
 }
 
@@ -555,11 +554,8 @@ void HVAC::setTemp(int8_t mode, int16_t Temp, int8_t hl)
 // Update when DHT22 changes
 void HVAC::updateIndoorTemp(int16_t Temp, int16_t rh)
 {
-#ifdef SIM
-	if(m_inTemp != 0)	// get real temp once if simulating
-		return;
-#endif
-	m_inTemp = Temp;
+	if(m_remoteTimer == 0)	// only get local temp if no remote
+		m_inTemp = Temp;
 	m_rh = rh;
 }
 
@@ -619,7 +615,6 @@ static const char *cGCmds[] =
 {
 	"interface",
 	"settings",
-	"temp",
 	"log",
 	NULL
 };
@@ -636,9 +631,9 @@ int HVAC::getVar(String s)
 			r = 'thst';//0x74687374;                 // unique response = thermostat
 			break;
 		case 1:    // settings
-			r = m_EE.Mode;			    	// 2
-			r |= (m_AutoMode << 2);		    // 2
-			r |= (m_EE.heatMode << 4);	    // 2
+			r = m_EE.Mode;			// 2
+			r |= (m_AutoMode << 2);		// 2
+			r |= (m_EE.heatMode << 4);	// 2
 			r |= (m_bFanMode ? 0x40:0); 	// 1
 			r |= (m_bRunning ? 0x80:0); 	// 1
 			r |= (m_bFanRunning ? 0x100:0); // 1
@@ -646,18 +641,13 @@ int HVAC::getVar(String s)
 			r |= m_EE.eHeatThresh << 10;    // 6 (63 max)
 			r |= m_EE.fanPostDelay << 16;	// 8 (255)
 			r |= m_EE.cycleThresh << 24; 	// 8
-			sprintf(m_szResult, "{\"c0\":%d,\"c1\":%d,\"h0\":%d,\"h1\":%d,\"it\":%d,\"tt\":%d,\"im\":%d,\"cn\":%d,\"cx\":%d,\"fh\":%d,\"ot\":%d,\"ol\":%d,\"oh\":%d,\"ct\":%d,\"ft\":%d,\"rt\":%d,\"td\":%d,\"ov\":%d,\"rh\":%d}",
-			// 160-191
+			sprintf(m_szResult, "{\"c0\":%d,\"c1\":%d,\"h0\":%d,\"h1\":%d,\"it\":%d,\"tt\":%d,\"im\":%d,\"cn\":%d,\"cx\":%d,\"fh\":%d,\"ot\":%d,\"ol\":%d,\"oh\":%d,\"ct\":%d,\"ft\":%d,\"rt\":%d,\"td\":%d,\"ov\":%d,\"rh\":%d,\"rm\":%d,\"ro\":%d}",
+			// 170-200
 			m_EE.coolTemp[0], m_EE.coolTemp[1], m_EE.heatTemp[0], m_EE.heatTemp[1],
 			m_inTemp, m_targetTemp, m_EE.idleMin, m_EE.cycleMin, m_EE.cycleMax, m_EE.filterMinutes,
-			m_outTemp, m_outMin[1], m_outMax[1], m_cycleTimer, m_fanOnTimer, m_runTotal, m_tempDiffTotal, m_EE.overrideTime,m_rh);
+			m_outTemp, m_outMin[1], m_outMax[1], m_cycleTimer, m_fanOnTimer, m_runTotal, m_tempDiffTotal, m_EE.overrideTime, m_rh, m_remoteTimer, m_remoteTimeout);
 
 			break;
-		case 2: // temp
-			r = m_inTemp;
-			r |= m_rh << 10;
-			r |= m_outTemp << 20;
-			break;	// <16 bits
 		case 3:     // log
 			for(i = 0; i < 32; i++)         // count how many left for return value
 				if(m_logs[i].time)
@@ -696,6 +686,8 @@ static const char *cSCmds[] =
 	"override",
 	"overridetime",
 	"notify",
+	"remotetemp",
+	"remotetime",
 	NULL
 };
 
@@ -785,6 +777,13 @@ int HVAC::setVar(String s)
 				addNotification(szNote);
 			}
 			return 11;
+		case 18: // remotetemp
+			m_inTemp = val;
+			m_remoteTimer = m_remoteTimeout;    // heartbeat
+			break;
+		case 19: // remotetime
+			m_remoteTimeout = val;
+			break;
 	}
 	return -1;      // default no button to refresh
 }
@@ -809,72 +808,3 @@ void HVAC::clearNotification(int n)
 	if( n >= 0 && n < 8)
 		m_pszNote[n] = NULL;
 }
-
-#ifdef SIM
-// Simulate indoor temp changes
-void HVAC::simulator()
-{
-	static int8_t nCount = 0;
-
-	if(++nCount < 30)		// starting out with 30 seconds
-		return;
-	nCount = 0;
-
-	int Diff = m_inTemp - m_outTemp;	// difference in/out
-
-	if(Diff < 0) Diff = -Diff;
-
-	if(Diff < 10)           // <1.0 = no change range
-		return;
-
-	if(m_bRunning)
-	{
-//		int Chg = 1;    // 0.1
-//		if(Diff < 200)  // 20deg
-//		Chg = -(int)(log(Diff * 0.01));
-
-//		Serial.print("Sim:");
-
-		switch(m_EE.Mode)
-		{
-			case Mode_Cool:
-				m_inTemp--;
-//				Serial.print("Cool");
-				break;
-			case Mode_Heat:
-				m_inTemp++;
-//				Serial.print("Heat");
-				break;
-			case Mode_Auto:
-//				Serial.print("Auto ");
-//				Serial.print(m_AutoMode);
-				if(m_AutoMode == Mode_Cool) m_inTemp--;
-				if(m_AutoMode == Mode_Heat) m_inTemp++;
-				break;
-		}
-
-//		Serial.print(" inTemp = ");
-//		Serial.print((float)m_inTemp / 10);
-//		Serial.print(" Chg = ");
-//		Serial.println((float)Chg / 10);
-	}
-	else	// not running
-	{
-//		int Chg = (int)(exp( Diff * 0.005 ));
-		static int8_t skip = 0;
-
-		if(++skip > 2)                      // slower change when off
-		{
-			if(m_inTemp - m_outTemp > 0)	// colder outside
-				m_inTemp--;
-			else	// warmer outside
-				m_inTemp++;
-			skip = 0;
-		}
-//		Serial.print("Sim:Off inTemp = ");
-//		Serial.print((float)m_inTemp / 10);
-//		Serial.print(" Chg = ");
-//		Serial.println((float)Chg / 10);
-	}
-}
-#endif
