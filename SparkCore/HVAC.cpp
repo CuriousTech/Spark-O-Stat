@@ -778,8 +778,15 @@ int HVAC::setVar(String s)
 			}
 			return 11;
 		case 18: // remotetemp
-			m_inTemp = val;
-			m_remoteTimer = m_remoteTimeout;    // heartbeat
+			if(val)
+			{
+				m_inTemp = val;
+				m_remoteTimer = m_remoteTimeout;    // heartbeat
+			}
+			else
+			{
+				m_remoteTimer = 0;  // temp = 0 to cancel
+			}
 			break;
 		case 19: // remotetime
 			m_remoteTimeout = val;
