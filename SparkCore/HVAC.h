@@ -119,6 +119,8 @@ private:
 	int8_t  m_outMin[2], m_outMax[2];
 	int8_t  m_ovrTemp		// override delta of target
 	Log     m_logs[32]; 		// 512 bytes
+	uint16_t m_remoteTimeout	// timeout for remote sensor
+	uint16_t m_remoteTimer		// in seconds
 };
 
 #define	P_FAN	D4
