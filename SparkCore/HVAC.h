@@ -56,6 +56,7 @@ public:
 	HVAC(void);
 	void	service(void);		// call once per second
 	bool    getRunning(void);       // return running
+	bool    getFanRunning(void);    // return fan state (even simulated)
 	int8_t  getMode(void);          // actual mode
 	uint8_t getHeatMode(void);      // heat mode
 	int8_t  getAutoMode(void);      // get current auto heat/cool mode
@@ -85,7 +86,6 @@ public:
 	int16_t m_outTemp		// adjusted current temp *10
 	int16_t	m_inTemp;		// current adjusted indoor temperature *10
 	uint16_t m_targetTemp		// end temp for cycle
-	bool	m_bFanRunning;		// when fan is running
 	const char *m_pszNote[8];
 
 private:
@@ -98,6 +98,7 @@ private:
 	void	simulator(void);
 
 	bool	m_bFanMode;		// Auto=false, On=true
+	bool	m_bFanRunning;		// when fan is running
 	int8_t	m_AutoMode;		// cool, heat
 	int8_t	m_setMode;		// new mode request
 	int8_t	m_setHeat;		// new heat mode request
@@ -121,6 +122,7 @@ private:
 	Log     m_logs[32]; 		// 512 bytes
 	uint16_t m_remoteTimeout	// timeout for remote sensor
 	uint16_t m_remoteTimer		// in seconds
+	int8_t	m_furnaceFan;		// fake fan timer
 };
 
 #define	P_FAN	D4
