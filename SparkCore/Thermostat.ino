@@ -800,35 +800,22 @@ int sf_setVar(String s)
 
 int sf_getVar(String s)
 {
-    return hvac.getVar(s);
+	return hvac.getVar(s);
 }
 
 void UpdateEE()  // check for any changes that haven't been saved
 {
-    uint8_t *p = (uint8_t *)&hvac.m_EE;
-
-    for(unsigned int i = 0; i < sizeof(EEConfig); i++)
-    {
-        if(p[i] != EEPROM.read(i))
-        {
-            EEPROM.write(i, p[i]);
-        }
-    }
+	EEPROM.put(0, hvac.m_EE);
 }
 
 void ReadEE()   // read EEPROM on startup
 {
-    if( EEPROM.read( sizeof(EEConfig)-1 ) != 0xAA) // uninitialized
-        return;
+	if( EEPROM.read( sizeof(EEConfig)-1 ) != 0xAA) // uninitialized
+		return;
 
-    uint8_t *p = (uint8_t *)&hvac.m_EE;
-
-    for(unsigned int i = 0; i < sizeof(EEConfig); i++)
-    {
-        p[i] = EEPROM.read(i);
-    }
-    hvac.setMode(hvac.getMode()); // set request mode to EE mode
-    hvac.setHeatMode(hvac.getHeatMode());
+	EEPROM.get(0, hvac.m_EE);
+	hvac.setMode(hvac.getMode()); // set request mode to EE mode
+	hvac.setHeatMode(hvac.getHeatMode());
 }
 
 //------------------------------
@@ -923,12 +910,12 @@ void loop()
 		displayTime();
 		hvac.service();
 
-		if(hvac.getMode() != lastMode || hvac.getRunning() != bRun || bFan != hvac.m_bFanRunning)   // erase prev highlight
+		if(hvac.getMode() != lastMode || hvac.getRunning() != bRun || bFan != hvac.getFanRunning() )   // erase prev highlight
 		{
 			lastMode = hvac.getMode();
 			drawButton(1, false, false);
 			drawButton(2, false, false);
-			sprintf(szPub, "{\"Mode\": %u, \"Run\": %u, \"Fan\": %u}", lastMode, bRun = hvac.getRunning(), bFan = hvac.m_bFanRunning);
+			sprintf(szPub, "{\"Mode\": %u, \"Run\": %u, \"Fan\": %u}", lastMode, bRun = hvac.getRunning(), bFan = hvac.getFanRunning() );
 			Particle.publish("modeChg", szPub);
 		}
 	
