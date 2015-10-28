@@ -30,151 +30,86 @@
 }
 </style>
 
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.min.js" type="text/javascript" charset="utf-8"></script>
+
 <script type="text/javascript">
 <!--
 
-var loadingmessage = 'Processing...';
 var Json, mode, autoMode, heatMode, fanMode, running, fan
 var modes = new Array('Off', 'Cool', 'Heat', 'Auto')
 var heatmodes = new Array('NG', 'HP', 'Auto')
 
-function setAjax(){
-   var xmlHttp;
-   try{
-      xmlHttp=new XMLHttpRequest(); // Firefox, Opera 8.0+, Safari
-      return xmlHttp;
-   }
-   catch (e){
-      try{
-         xmlHttp=new ActiveXObject("Msxml2.XMLHTTP"); // Internet Explorer
-         return xmlHttp;
-      }
-      catch (e){
-         try{
-            xmlHttp=new ActiveXObject("Microsoft.XMLHTTP");
-            return xmlHttp;
-         }
-         catch (e){
-            alert("Your browser does not support AJAX!");
-            return false;
-         }
-     }
-   }
+function readVar(varName)
+{
+	requestURL = "https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/" + varName + "/?access_token=" + document.all.myToken.value;
+	$.getJSON(requestURL, function(json){
+		Json = JSON.parse(json.result)
+	
+		document.all.cooll.value = +Json.c0 / 10
+		document.all.coolh.value = +Json.c1 / 10
+		document.all.heatl.value = +Json.h0 / 10
+		document.all.heath.value = +Json.h1 / 10
+		document.all.intemp.innerHTML = +Json.it / 10
+		document.all.target.innerHTML = +Json.tt / 10
+		document.all.idlemin.value = +Json.im
+		document.all.cycmin.value = +Json.cn
+		document.all.cycmax.value = +Json.cx
+	//	document.all.filtermins.innerHTML = +Json.fh
+		document.all.outtemp.innerHTML = +Json.ot / 10
+	//	outFL = +Json.ol
+	//	outFH = +Json.oh
+		document.all.cyctimer.innerHTML = secsToTime( +Json.ct )
+	//	document.all.fantimer.innerHTML = +Json.ft
+		document.all.runtotal.innerHTML = secsToTime( +Json.rt )
+	//	tempDiffTotal = +Json.td
+		document.all.ovrtime.value = +Json.ov
+		document.all.rh.innerHTML = +Json.rh / 10
+	
+		if( +document.all.ovrtemp.value == 0) // set a better default
+			document.all.ovrtemp.value = -1.0
+		document.all.ovrCell.setAttribute('class', ovrActive ? 'style5' : 'style1');
+	});
 }
 
-function myAjax(f, myDivToChange) {
-   var poststr = getFormValues(f);
-//    postData(url, poststr, myDivToChange);
+function getVar(varName)
+{
+	requestURL = "https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/getvar/";
+	$.post( requestURL, { params: varName, access_token: document.all.myToken.value }, function(json){
+		settings = json.return_value
+	   	mode = settings & 3
+		autoMode = (settings >> 2) & 3
+		heatMode = (settings >> 4) & 3
+		fanMode = (settings >> 6) & 1
+		running = (settings>> 7) & 1
+		fan = (settings>> 8) & 1
+		ovrActive = (settings>> 9) & 1
+	//	eHeatThresh = (settings >> 10) & 0x3F
+		document.all.fandelay.value = (settings >> 16) & 0xFF
+		document.all.thresh.value = ((settings >> 24) & 0xFF) / 10
+	
+		document.all.fan.innerHTML = fan ? "Fan On" : "Fan Off"
+		document.all.fanCell.setAttribute('class', fan ? 'style5' : 'style1');
+	
+		document.all.fanmode.innerHTML = fanMode ? "On" : "Auto"
+		m = (mode == 4) ? autoMode : mode
+		document.all.run.innerHTML = running ? modes[m] : "Idle"
+		document.all.runCell.setAttribute('class', running ? 'style5' : 'style1');
+	
+		document.all.mode.innerHTML = modes[mode]
+		document.all.heatmode.innerHTML = heatmodes[heatMode]
+		readVar( 'result' )	// result set by settings call
+	});
 }
 
-function readVar(varName){
-   var xmlHttp = setAjax();
-   xmlHttp.onreadystatechange =  function(){
-      if(xmlHttp.readyState > 0 && xmlHttp.readyState < 4){
-//          document.getElementById('myDivId').innerHTML=loadingmessage;
-      }
-      if (xmlHttp.readyState == 4) {
-		var JsonObj = JSON.parse(xmlHttp.responseText)
-//		document.getElementById('myDivId').innerHTML = JsonObj.result;
-      }
-   }
-   url = 'https://api.spark.io/v1/devices/' + document.all.myDeviceId.value + '/' + varName + '?access_token=' + document.all.myToken.value
-   xmlHttp.open("GET", url, false)
-   xmlHttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
-   xmlHttp.send();
-   var myJsonObject = JSON.parse(xmlHttp.responseText)
-   return myJsonObject.result
-}
-
-function getVar(varName){
-   var xmlHttp = setAjax();
-   xmlHttp.onreadystatechange =  function(){
-      if(xmlHttp.readyState > 0 && xmlHttp.readyState < 4){
-//		document.getElementById('myDivId').innerHTML=loadingmessage;
-      }
-      if (xmlHttp.readyState == 4) {
-      	// this is where the magic occcurs
-		var JsonObj = JSON.parse(xmlHttp.responseText)
-//		document.getElementById('myDivId').innerHTML= JsonObj.return_value
-      }
-   }
-   url = 'https://api.spark.io/v1/devices/' + document.all.myDeviceId.value + '/getvar?access_token=' + document.all.myToken.value
-   xmlHttp.open("POST", url, false)
-   xmlHttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
-   xmlHttp.send( 'params=' + varName);
-   var myJsonObject = JSON.parse(xmlHttp.responseText)
-   return myJsonObject.return_value;
-}
-
-function setVar(varName, value){
-   var xmlHttp = setAjax();
-   xmlHttp.onreadystatechange =  function(){
-      if(xmlHttp.readyState > 0 && xmlHttp.readyState < 4){
-//		document.getElementById('myDivId').innerHTML=loadingmessage;
-      }
-      if (xmlHttp.readyState == 4) {
-		// this is where the magic occcurs
-		var myJsonObject = JSON.parse(xmlHttp.responseText)
-//		document.getElementById('myDivId').innerHTML = myJsonObject.return_value
-      }
-   }
-   url = 'https://api.spark.io/v1/devices/' + document.all.myDeviceId.value + '/setvar?access_token=' + document.all.myToken.value
-   xmlHttp.open("POST", url, true)
-   xmlHttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded")
-   xmlHttp.send( 'params=' + varName + ',' + value)
+function setVar(varName, value)
+{
+	requestURL = "https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/setvar/";
+	$.post( requestURL, { params: varName + ',' + value, access_token: document.all.myToken.value });
 }
 
 function getAll()
 {
- 	settings = getVar('settings')
-   	mode = settings & 3
-	autoMode = (settings >> 2) & 3
-	heatMode = (settings >> 4) & 3
-	fanMode = (settings >> 6) & 1
-	running = (settings>> 7) & 1
-	fan = (settings>> 8) & 1
-	ovrActive = (settings>> 9) & 1
-//	eHeatThresh = (settings >> 10) & 0x3F
-	document.all.fandelay.value = (settings >> 16) & 0xFF
-	document.all.thresh.value = ((settings >> 24) & 0xFF) / 10
-
-	document.all.fan.innerHTML = fan ? "Fan On" : "Fan Off"
-	document.all.fanCell.setAttribute('class', fan ? 'style5' : 'style1');
-
-	document.all.fanmode.innerHTML = fanMode ? "On" : "Auto"
-	m = (mode == 4) ? autoMode : mode
-	document.all.run.innerHTML = running ? modes[m] : "Idle"
-	document.all.runCell.setAttribute('class', running ? 'style5' : 'style1');
-
-	document.all.mode.innerHTML = modes[mode]
-	document.all.heatmode.innerHTML = heatmodes[heatMode]
-
-	res = readVar( 'result' )	// result set by settings call
-	Json = JSON.parse(res)
-
-	document.all.cooll.value = +Json.c0 / 10
-	document.all.coolh.value = +Json.c1 / 10
-	document.all.heatl.value = +Json.h0 / 10
-	document.all.heath.value = +Json.h1 / 10
-	document.all.intemp.innerHTML = +Json.it / 10
-	document.all.target.innerHTML = +Json.tt / 10
-	document.all.idlemin.value = +Json.im
-	document.all.cycmin.value = +Json.cn
-	document.all.cycmax.value = +Json.cx
-//	document.all.filtermins.innerHTML = +Json.fh
-	document.all.outtemp.innerHTML = +Json.ot / 10
-//	outFL = +Json.ol
-//	outFH = +Json.oh
-	document.all.cyctimer.innerHTML = secsToTime( +Json.ct )
-//	document.all.fantimer.innerHTML = +Json.ft
-	document.all.runtotal.innerHTML = secsToTime( +Json.rt )
-//	tempDiffTotal = +Json.td
-	document.all.ovrtime.value = +Json.ov
-	document.all.rh.innerHTML = +Json.rh / 10
-
-	if( +document.all.ovrtemp.value == 0) // set a better default
-		document.all.ovrtemp.value = -1.0
-	document.all.ovrCell.setAttribute('class', ovrActive ? 'style5' : 'style1');
+ 	getVar('settings')
 }
 
 function togglefan()
@@ -485,5 +420,6 @@ every <input type=text size=5 value=20 id="myPoll">Seconds
 <input type="button" value="Stop" onClick="{
     clearInterval(document.myPollSave)
 }">
+
 </body>
 </html>
