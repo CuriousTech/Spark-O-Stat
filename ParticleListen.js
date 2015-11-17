@@ -1,12 +1,10 @@
 // Particle stream listener for SparkRemote
 
-	spark = 'https://api.particle.io/v1/devices/'
+  spark = 'https://api.particle.io/v1/devices/'
   deviceID = 'xxxxxxxxxxxxxxxxxxxxxxxx'
-	token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+  token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
-	eventUrl = spark + deviceID + '/events?access_token=' + token
-
-	streaming = false
+  eventUrl = spark + deviceID + '/events?access_token=' + token
 
 // Handle published events
 function OnCall(msg, data)
@@ -14,11 +12,16 @@ function OnCall(msg, data)
 	switch(msg)
 	{
 		case 'START':
-			if( Http.Connect( eventUrl ) ) // Start the event stream
+			if(Http.Connected)
 			{
 				Pm.SparkRemote( 'StreamStatus', 1)
-				streaming = true
+				break
 			}
+			if( Http.Connect( eventUrl ) ) // Start the event stream
+					Pm.SparkRemote( 'StreamStatus', 1)
+			else
+					Pm.Echo('Stream failed')
+			Pm.SetTimer(60*1000)		// recheck every 60 seconds
 			break
 		case 'HTTPDATA':
 			heartbeat = new Date()
@@ -30,28 +33,29 @@ function OnCall(msg, data)
 		case 'HTTPCLOSE':
 			Pm.Echo( 'Particle disconected ' + data)
 			Pm.SparkRemote( 'StreamStatus', 0)
-			Pm.SetTimer(20*1000)		// reconnect in 20 secs
+			break
+		case 'HTTPSTATUS':
 			break
 		default:
-			Pm.Echo('SR Unrecognised ' + msg)
+			Pm.Echo('PL Unrecognised ' + msg)
 			break
 	}
 }
 
 function OnTimer()
 {
-	if(!streaming)
-		if( Http.Connect( eventUrl ) ) // Start the event stream
-		{
-			Pm.SparkRemote( 'StreamStatus', 1)
-			streaming = true
-		}
-	Pm.SetTimer(60*1000)		// recheck every 60 seconds
+	if(Http.Connected)
+		return
+	if( Http.Connect( eventUrl ) ) // Start the event stream
+		Pm.SparkRemote( 'StreamStatus', 1)
+	else
+		Pm.Echo('Stream failed')
 }
 
 function procLine(data)
 {
 	if(data.length == 0) return
+//	Pm.Echo('Data: '+  data)
 	if(data == ':ok' )
 	{
 		Pm.Echo( ' Particle stream started')
@@ -71,7 +75,6 @@ function procLine(data)
 	}
 
 	data = data.substr( data.indexOf('{') ) // remove the leading "data"
-//	Pm.Echo('Data: '+  data)
 
 	Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 			data.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + data + ')')
@@ -81,6 +84,9 @@ function procLine(data)
 		case 'spark/status':
 			Pm.Echo('Status ' + Json.data) // online / offline status
 			online = (Json.data == 'online') ? true:false
+			break
+		case 'spark/flash/status':
+			Pm.Echo('Flash Status ' + Json.data) // flash status
 			break
 		case 'spark/cc3000-patch-version': // this posts every time the device comes online
 			Pm.Echo('cc3000 version: ' + Json.data)
@@ -100,6 +106,10 @@ function procLine(data)
 
 			Pm.SparkRemote('UPDATE')
 			OnTimer()  // read the rest of the data
+			break
+		case 'error':
+			Pm.Echo('Error: ' + Json.data)
+			Pm.Beep(0)
 			break
 		default:
 			Pm.Echo('Unknown event: ' + event)
