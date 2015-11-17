@@ -19,14 +19,19 @@
 	if(Reg.overrideTemp == 0)
 		Reg.overrideTemp = -1.2
 
-	var cnt = (Math.random(100) * 10000).toFixed() // fix for cache
-
 	var settings
 
 	streaming = false
 	online = true
 
+	Pm.Window('SparkRemote')
+
+	Gdi.Width = 208 // resize drawing area
+	Gdi.Height = 338
+
 	Pm.ParticleListen()
+
+	Pm.SetTimer(4*60*1000)
 	OnTimer()
 
 // Handle published events
@@ -35,7 +40,13 @@ function OnCall(msg, data)
 	switch(msg)
 	{
 		case 'HTTPSTATUS':
-			Pm.Echo( ' Particle error: ' + data)
+			switch(+data)
+			{
+				case 12002: s = 'Timeout'; break
+				case 12157: s =  'Enable Internet Options-> Advanced -> SSL2/3'; break
+				default: s = ' '
+			}
+			Pm.Echo( ' Particle error: ' + data + ' ' + s)
 			break
 		case 'HTTPDATA':
 			procLine(data)
@@ -227,38 +238,47 @@ function procLine(data)
 			}
 			Draw()
 
-			event = 'log'
-			Http.Connect( particleUrl + deviceID + '/getvar?access_token=' + token, 'POST', 'params=log' )
+			if(Json.lc) // see if there are logs
+			{
+				event = 'log'
+				Http.Connect( particleUrl + deviceID + '/getvar?access_token=' + token, 'POST', 'params=log' )
+			}
+			if(!streaming)
+			{
+				Pm.ParticleListen('START')
+			}
 			break
 
 		case 'log':
-			logs = Json.return_value
+			logCount = Json.return_value
 //			Pm.Echo('log ' + Json.return_value)
-			if(logs)
+			if(logCount)
 			{
 				event = 'logres'
 				Http.Connect( particleUrl + deviceID + '/result?access_token=' + token )
 			}
-
-			if(!streaming)
-				Pm.ParticleListen('START')
 			break
 
 		case 'logres':
-			str = Json.data
+			str = Json.result
 			Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 				str.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + str + ')')
 
 			// time mode secs t1  rh1 t2  rh2
-			Pm.Echo('Log = ' + Json.time)
+
+			if(logCount > 1)
+			{
+				event = 'log'
+				Http.Connect( particleUrl + deviceID + '/getvar?access_token=' + token, 'POST', 'params=log' )
+			}
 			break
 
 		case 'setvar':
-			Pm.Echo('setvar ' + Json.return_value)
+//			Pm.Echo('setvar ' + Json.return_value)
 			break
 
 		default:
-			Pm.Echo('Unknown event: ' + event)
+			Pm.Echo('SR Unknown event: ' + event)
 			break	
 	}
 }
@@ -314,16 +334,10 @@ function OnTimer()
 {
 	event = 'settings'
 	Http.Connect( particleUrl + deviceID + '/getvar?access_token=' + token, 'POST', 'params=settings' )
-	Pm.SetTimer(4*60*1000)
 }
 
 function Draw()
 {
-	Pm.Window('SparkRemote')
-
-	Gdi.Width = 208 // resize drawing area
-	Gdi.Height = 338
-
 	Gdi.Clear(0) // transaprent
 
 	// rounded window
@@ -409,7 +423,7 @@ function Draw()
 	else
 		cost = ccfs * runTotal
 
-	Gdi.Text('Filter:', x, y);  Gdi.Text(filterMins, x + 90, y, 'Time')
+	Gdi.Text('Filter:', x, y);  Gdi.Text(filterMins*60, x + 90, y, 'Time')
 	Gdi.Pen(Gdi.Argb(255,20,20,255), 2 )	// Button square
 	Pm.Button(x, y, 90, 15)
 	Gdi.Rectangle(x, y, 90, 15, 2)
