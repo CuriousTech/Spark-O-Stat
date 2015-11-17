@@ -11,6 +11,6 @@ A periodic screenshot of data collection: This is sometime in the summer.  The o
 
 This is the older desktop control running on PngMagic  
 
-![control](http://www.curioustech.net/images/Screenshot%202015-08-05%2008.21.23.png)
+![control](http://curioustech.net/images/Screenshot 2015-11-17 14.43.43.png)
 
 More info at http://www.curioustech.net/curiousprojects.html
