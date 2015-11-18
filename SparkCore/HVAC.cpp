@@ -12,30 +12,32 @@
 #include "HVAC.h"
 #include "math.h"
 
-#define FF_DELAY 125            // internal furnace fan post-run delay
+#define FF_DELAY 120            // internal furnace fan post-run delay
 
 HVAC::HVAC()
 {
 	m_EE.fanPostDelay = 120; 	// 90 seconds after compressor stops
 	m_EE.filterMinutes = 0;
-	m_EE.cycleMin = 60;		// 60 seconds minimum for a cycle
+	m_EE.cycleMin = 60;		    // 60 seconds minimum for a cycle
 	m_EE.cycleMax = 60*15;		// 15 minutes maximun for a cycle
 	m_EE.idleMin = 60*5;		// 5 minutes minimum between cycles
-	m_EE.cycleThresh = 16;		// 1.5 degree cycle range
+	m_EE.cycleThresh = 16;		// 1.6 degree cycle range
 	m_EE.coolTemp[1] = 820;		// 82.0 default temps
 	m_EE.coolTemp[0] = 790;		// 79.0
 	m_EE.heatTemp[1] = 740;		// 74.0
 	m_EE.heatTemp[0] = 700;		// 70.0
 	m_EE.eHeatThresh = 30;		// Setting this low (30 deg) for now
 	m_EE.overrideTime = 10 * 60;	// setting for override
-	m_EE.id = 0xAA55;		// EE value for validity check or struct size changes
+	m_EE.id = 0xAA55;		    // EE value for validity check or struct size changes
 
 	memset(m_fcData, -1, sizeof(m_fcData)); // invalidate forecast
 
-	m_outMax[0] = -50;		// set as invalid
-	m_outMax[1] = -50;		// set as invalid
+//	m_fcPeaks[0].h = -50		// set as invalid
 
-	m_remoteTimeout = 60 * 5;	// 5 minutes default
+	m_outMax[0] = -50;	    	// set as invalid
+	m_outMax[1] = -50;	    	// set as invalid
+
+    m_remoteTimeout = 60*5;    // 5 minutes default
 
 	pinMode(P_FAN, OUTPUT);
 	pinMode(P_COOL, OUTPUT);
@@ -55,19 +57,15 @@ void HVAC::fanSwitch(bool bOn)
 	{
 		m_fanOnTimer = 0;       // reset fan on timer
 	}
-	else	// fan shut off
-	{
-		fanTimeAccum();
-	}
 }
 
 // Accumulate fan running times
-void HVAC::fanTimeAccum()
+void HVAC::filterInc()
 {
 	static uint16_t nSecs = 0;
 
-	nSecs += m_fanOnTimer;  // add last run time to total counter
-	while(nSecs >= 60)    // increment filter minutes
+	nSecs ++;  // add last run time to total counter
+	if(nSecs >= 60)    // increment filter minutes
 	{
 		m_EE.filterMinutes++;
 		nSecs -= 60;     // and subtract a minute
@@ -77,32 +75,33 @@ void HVAC::fanTimeAccum()
 // Service: called once per second (unless the Spark freezes)
 void HVAC::service()
 {
-	if(m_bFanRunning || m_bRunning)         // furance runs fan seperately
+	if(m_bFanRunning || m_bRunning || m_furnaceFan)  // furance runs fan seperately
 	{
-		m_fanOnTimer++;			// running time counter
+		filterInc();
+		m_fanOnTimer++;			        	// running time counter
 
-		if(m_fanOnTimer >= 60*60*12	// 12 hours, add up and reset
+		if(m_fanOnTimer >= 60*60*12)        // 12 hours, add up and reset
 		{
-			fanTimeAccum();
 			m_fanOnTimer = 0;
 		}
+        if(m_furnaceFan)                       // fake fan status for furnace fan
+        {
+            m_furnaceFan--;
+        }
 	}
 
-	if(m_fanPostTimer)			// Fan conintuation delay
+	if(m_fanPostTimer)		        		// Fan conintuation delay
 	{
 		if(--m_fanPostTimer == 0)
-			if(!m_bRunning)		// Ensure system isn't running
+			if(!m_bRunning)			        // Ensure system isn't running
 				fanSwitch(false);
 	}
-	if(m_remoteTimer)			// remote temperature override timer
-	{
-		m_remoteTimer--;
-	}
 
-	if(m_furnaceFan)			// fake fan status for furnace fan
-	{
-		m_furnaceFan--;
-	}
+    if(m_remoteTimer)                       // remote temperature override timer
+    {
+        m_remoteTimer--;
+    }
+
 
 	if(m_overrideTimer)
 	{
@@ -116,31 +115,31 @@ void HVAC::service()
 	if(m_bRunning)
 	{
 		m_runTotal++;
-		if(++m_cycleTimer < 20)		// Block changes for at least 20 seconds
+		if(++m_cycleTimer < 20)		        // Block changes for at least 20 seconds
 			return;
-		if(m_cycleTimer >= m_EE.cycleMax // running too long (todo: skip for eHeat?)
+		if(m_cycleTimer >= m_EE.cycleMax)   // running too long (todo: skip for eHeat?)
 			m_bStop = true;
 	}
 	else
 	{
-		m_idleTimer++;		        // Time since stopped
+		m_idleTimer++;		        		// Time since stopped
 	}
 
 	if(m_setMode != m_EE.Mode || m_setHeat != m_EE.heatMode)   	// requested HVAC mode change
 	{
-		if(m_bRunning)			// cycleTimer is already > 20s here
+		if(m_bRunning)                      // cycleTimer is already > 20s here
 			m_bStop = true;
 		if(m_idleTimer >= 5)
 		{
-			m_EE.heatMode = m_setHeat;
-			m_EE.Mode = m_setMode;	// User may be cycling through modes (give 5s)
+            m_EE.heatMode = m_setHeat;
+			m_EE.Mode = m_setMode;	        // User may be cycling through modes (give 5s)
 			calcTargetTemp(m_EE.Mode);
 		}
 	}
 
 	int8_t hm = (m_EE.heatMode == Heat_Auto) ? m_AutoHeat : m_EE.heatMode;
 
-	if(m_bStart && !m_bRunning)		// Start signal occurred
+	if(m_bStart && !m_bRunning)	            // Start signal occurred
 	{
 		int8_t mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode;
 		m_bStart = false;
@@ -182,7 +181,7 @@ void HVAC::service()
 //		Serial.println(m_inTemp);
 	}
 
-	if(m_bStop && m_bRunning)			// Stop signal occurred
+	if(m_bStop && m_bRunning)	        		// Stop signal occurred
 	{
 		m_bStop = false;
 		digitalWrite(P_COOL, LOW);
@@ -190,22 +189,20 @@ void HVAC::service()
 
 		if(m_bFanRunning && m_bFanMode == false) // Note: furance manages fan
 		{
-			if(m_EE.fanPostDelay)		// leave fan running to circulate air longer
+			if(m_EE.fanPostDelay)			    // leave fan running to circulate air longer
 				m_fanPostTimer = m_EE.fanPostDelay;
 			else
 				fanSwitch(false);
 		}
 		
-		if(hm					// count run time as fan time in winter
-		{
-			m_fanOnTimer += FF_DELAY;	// furnace post fan is 125-ish seconds
-			fanTimeAccum();
+		if(hm)                  // count run time as fan time in winter
+		{			         // furnace post fan is 120 seconds
 			m_furnaceFan = FF_DELAY;
 		}
         
+		analyze();
 		m_bRunning = false;
 		m_idleTimer = 0;
-		analyze();
 	}
 
 	tempCheck();
@@ -236,11 +233,11 @@ void HVAC::tempCheck()
 		switch(mode)
 		{
 			case Mode_Cool:
-				if( m_inTemp <= m_targetTemp - m_EE.cycleThresh ) // has cooled to desired temp
+				if( m_inTemp <= m_targetTemp - m_EE.cycleThresh ) // has cooled to desired temp - threshold
 					m_bStop = true;
 				break;
 			case Mode_Heat:
-				if(m_inTemp >= m_targetTemp + m_EE.cycleThresh) // has heated to desired temp
+				if(m_inTemp > m_targetTemp + m_EE.cycleThresh) // has heated above desired temp + threshold
 					m_bStop = true;
 				break;
 		}
@@ -412,11 +409,7 @@ void HVAC::analyze()
 	if(i < 32)
 	{
 		m_logs[i].time = Time.now();
-
-		m_logs[i].mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode; // convert auto to just cool / heat
-		if(m_logs[i].mode == Mode_Heat && ( m_EE.heatMode == Heat_NG || (m_EE.heatMode == Heat_Auto && m_AutoHeat == Heat_NG) ) )  // convert any NG mode to 3
-			m_logs[i].mode = 3; // so logs will only be 1, 2 or 3.
-
+		m_logs[i].state = getState();
 		m_logs[i].secs = m_cycleTimer;
 		m_logs[i].t1 = m_startingTemp;
 		m_logs[i].rh1 = m_startingRh;
@@ -425,23 +418,31 @@ void HVAC::analyze()
 	}
 }
 
-bool HVAC::getRunning()
+uint8_t HVAC::getState()
 {
-	return m_bRunning;
+    if( m_bRunning == false) return 0;
+
+    // Check if NG furnace is running, which controls the fan automatically
+	uint8_t mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode; // convert auto to just cool / heat
+
+	if(mode == Mode_Heat && ( m_EE.heatMode == Heat_NG || (m_EE.heatMode == Heat_Auto && m_AutoHeat == Heat_NG) ) )  // convert any NG mode to 3
+		mode = 3; // so logs will only be 1, 2 or 3.
+
+	return mode;
 }
 
 bool HVAC::getFanRunning()
 {
 	bool bOn = m_bFanRunning;
 
-	// Check if NG furnace is running, which controls the fan automatically
+    // Check if NG furnace is running, which controls the fan automatically
 	uint8_t mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode; // convert auto to just cool / heat
 
-	if(mode == Mode_Heat && ( m_EE.heatMode == Heat_NG || (m_EE.heatMode == Heat_Auto && m_AutoHeat == Heat_NG) )) // if heat is nat gas
-	{
-		if(m_bRunning || m_furnaceFan)
-			bOn = true;
-	}
+    if(mode == Mode_Heat && ( m_EE.heatMode == Heat_NG || (m_EE.heatMode == Heat_Auto && m_AutoHeat == Heat_NG) )) // if heat is nat gas
+    {
+        if(m_bRunning || m_furnaceFan)
+            bOn = true;
+    }
 
 	return bOn;
 }
@@ -573,7 +574,7 @@ void HVAC::setTemp(int8_t mode, int16_t Temp, int8_t hl)
 void HVAC::updateIndoorTemp(int16_t Temp, int16_t rh)
 {
 	if(m_remoteTimer == 0)	// only get local temp if no remote
-		m_inTemp = Temp;
+    	m_inTemp = Temp;
 	m_rh = rh;
 }
 
@@ -604,11 +605,12 @@ void HVAC::updatePeaks(int8_t min, int8_t max)
 void HVAC::resetFilter()
 {
 	m_EE.filterMinutes = 0;
+	clearNotification(0);
 }
 
 bool HVAC::checkFilter(void)
 {
-	return (m_EE.filterMinutes >= (60*200) );
+	return (m_EE.filterMinutes >= 60*200);
 }
 
 void HVAC::resetTotal()
@@ -641,6 +643,7 @@ static const char *cGCmds[] =
 int HVAC::getVar(String s)
 {
 	int r = 0;
+	int lc = 0;
 	int i;
 
 	switch(CmdIdx(s, cGCmds))
@@ -649,21 +652,26 @@ int HVAC::getVar(String s)
 			r = 'thst';//0x74687374;                 // unique response = thermostat
 			break;
 		case 1:    // settings
-			r = m_EE.Mode;			// 2
-			r |= (m_AutoMode << 2);		// 2
-			r |= (m_EE.heatMode << 4);	// 2
+			r = m_EE.Mode;			    	// 2
+			r |= (m_AutoMode << 2);		    // 2
+			r |= (m_EE.heatMode << 4);	    // 2
 			r |= (m_bFanMode ? 0x40:0); 	// 1
 			r |= (m_bRunning ? 0x80:0); 	// 1
 			r |= (getFanRunning() ? 0x100:0); // 1
 			r |= (m_ovrTemp ? 0x200:0);     // 1
-			r |= m_EE.eHeatThresh << 10;    // 6 (63 max)
+			r |= m_EE.eHeatThresh << 10;    // 6 (6.3 max)
 			r |= m_EE.fanPostDelay << 16;	// 8 (255)
 			r |= m_EE.cycleThresh << 24; 	// 8
-			sprintf(m_szResult, "{\"c0\":%d,\"c1\":%d,\"h0\":%d,\"h1\":%d,\"it\":%d,\"tt\":%d,\"im\":%d,\"cn\":%d,\"cx\":%d,\"fh\":%d,\"ot\":%d,\"ol\":%d,\"oh\":%d,\"ct\":%d,\"ft\":%d,\"rt\":%d,\"td\":%d,\"ov\":%d,\"rh\":%d,\"rm\":%d,\"ro\":%d}",
-			m_EE.coolTemp[0], m_EE.coolTemp[1], m_EE.heatTemp[0], m_EE.heatTemp[1],
-			m_inTemp, m_targetTemp, m_EE.idleMin, m_EE.cycleMin, m_EE.cycleMax, m_EE.filterMinutes,
-			m_outTemp, m_outMin[1], m_outMax[1], m_cycleTimer, m_fanOnTimer, m_runTotal, m_tempDiffTotal, m_EE.overrideTime, m_rh, m_remoteTimer, m_remoteTimeout);
-			// 181-200
+			
+			for(i = 0; i < 32; i++)         // count how many left for return value
+				if(m_logs[i].time)
+					lc++;
+
+			sprintf(m_szResult, "{\"c0\":%d,\"c1\":%d,\"h0\":%d,\"h1\":%d,\"it\":%d,\"tt\":%d,\"im\":%d,\"cn\":%d,\"cx\":%d,\"fh\":%d,\"ot\":%d,\"ol\":%d,\"oh\":%d,\"ct\":%d,\"ft\":%d,\"rt\":%d,\"td\":%d,\"ov\":%d,\"rh\":%d,\"rm\":%d,\"ro\":%d,\"lc\":%d}",
+    			m_EE.coolTemp[0], m_EE.coolTemp[1], m_EE.heatTemp[0], m_EE.heatTemp[1],
+    			m_inTemp, m_targetTemp, m_EE.idleMin, m_EE.cycleMin, m_EE.cycleMax, m_EE.filterMinutes,
+    			m_outTemp, m_outMin[1], m_outMax[1], m_cycleTimer, m_fanOnTimer, m_runTotal, m_tempDiffTotal, m_EE.overrideTime, m_rh, m_remoteTimer, m_remoteTimeout, lc);
+			// 190-220
 			break;
 		case 2:     // log
 			for(i = 0; i < 32; i++)         // count how many left for return value
@@ -674,9 +682,10 @@ int HVAC::getVar(String s)
 				for(i = 0; i < 32; i++)     // find next unsent and set it up for request
 					if(m_logs[i].time)
 						break;
-				sprintf(m_szResult, "{\"time\":%d,\"mode\":%d,\"secs\":%d,\"t1\":%d,\"rh1\":%d,\"t2\":%d,\"rh2\":%d}",
-				m_logs[i].time, m_logs[i].mode, m_logs[i].secs, m_logs[i].t1, m_logs[i].rh1, m_logs[i].t2, m_logs[i].rh2);
-				m_logs[i].time = 0;
+				sprintf(m_szResult, "{\"time\":%d,\"st\":%d,\"secs\":%d,\"t1\":%d,\"rh1\":%d,\"t2\":%d,\"rh2\":%d}",
+    				m_logs[i].time, m_logs[i].state, m_logs[i].secs, m_logs[i].t1, m_logs[i].rh1, m_logs[i].t2, m_logs[i].rh2);
+    				m_logs[i].time = 0;
+    			    // 77
 			}
 			break;
 	}
@@ -794,19 +803,19 @@ int HVAC::setVar(String s)
 			}
 			return 11;
 		case 18: // remotetemp
-			if(val > 0)
-			{
-				m_inTemp = constrain(val, 650, 880); // Limit 65 to 88 degrees F
-				m_remoteTimer = m_remoteTimeout;    // heartbeat
-			}
-			else
-			{
-				m_remoteTimer = 0;  // temp = 0 to cancel
-			}
-			break;
+            if(val > 0)
+            {
+                m_inTemp = constrain(val, 650, 880); // Limit 65 to 88 degrees F
+                m_remoteTimer = m_remoteTimeout;    // heartbeat
+            }
+            else
+            {
+                m_remoteTimer = 0;  // temp = 0 to cancel
+            }
+		    break;
 		case 19: // remotetime
-			m_remoteTimeout = constrain(val, 1, 60*5); // Limit 1 sec to 5 minutes
-			break;
+            m_remoteTimeout = constrain(val, 1, 60*5); // Limit 1 sec to 5 minutes
+		    break;
 	}
 	return -1;      // default no button to refresh
 }
@@ -814,6 +823,8 @@ int HVAC::setVar(String s)
 bool HVAC::addNotification(const char *pszText)
 {
 	int i;
+
+// Todo: Check for duplicate
 	
 	for(i = 0; i < 8; i++)
 		if(!m_pszNote[i])
