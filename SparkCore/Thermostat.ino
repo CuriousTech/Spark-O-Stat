@@ -15,8 +15,8 @@
 #include "HVAC.h"
 #include "Encoder.h"
  
-#define FONT_SPACE 6
-#define FONT_Y 8
+#define FONT_SPAC	6
+#define FONT_		8
 #define CYAN		0xfe00	
 #define BRIGHT_RED	0xc03f	
 #define GRAY1		0x8410  
@@ -24,25 +24,28 @@
 
 //#define T_CAL     // switch to touchscreen calibration mode (draws hits and 4 temp buttons are calibration values adjusted by thumbwheel)
 
-#define DHT_TEMP_ADJUST (-3.0)   // Adjust indoor temp by degrees
-#define DHT_RH_ADJUST (3.0)      // Adjust indoor Rh by %
+#define DHT_TEMP_ADJUS	(-3.0)	// Adjust indoor temp by degrees
+#define DHT_RH_ADJUS	(3.0)	// Adjust indoor Rh by %
+#define DHT_PERIO  (15 * 1000)  // 15 seconds
+
 #define ONE_DAY_MILLIS (24 * 60 * 60 * 1000)
+
 unsigned long lastSync;
 
 int8_t  tz = -5;         // timezone and DST
 char    ZipCode[] = "41042";
+
+//--
 uint16_t blankSecs = 120;
 int8_t  brightness = 60; // in %
 int8_t  dimLevel = 2;    // dim level.  0 = off
+unsigned long lBacklightTimer;
+bool bScreenOn = true;
 
 void drawButton(int8_t btn, bool bDown, bool bFast);
 void screenOn(void);
 
-//--
 Adafruit_ILI9341 tft = Adafruit_ILI9341(TX, A7, RX);
-
-unsigned long lBacklightTimer;
-bool bScreenOn = true;
 
 UTouch touch(A2, A0);
 //--
@@ -63,7 +66,6 @@ void Encoder_callback()
 // declaration for DHT22 handler
 void dht_wrapper(); // must be declared before the lib initialization
 
-#define DHT_PERIOD (15 * 1000)  // 15 seconds
 unsigned long lUpdateDHT;
 bool bDHT;
 // DHT instantiate
@@ -127,16 +129,16 @@ void xml_callback(int8_t item, int8_t idx, char *p)
 
 	switch(item)
 	{
-		case 0					// valid time
-			if(!idx)			// first item isn't really data.  Use for past data
+		case 0:                             // valid time
+			if(!idx)                        // first item isn't really data.  Use for past data
 			{
-				hO = 0;			// reset hour offset
+				hO = 0;                     // reset hour offset
 				lastd = Time.day();
 				break;
 			}
-			d = atoi(p + 8);	// 2014-mm-ddThh:00:00-tz:00
+			d = atoi(p + 8);                // 2014-mm-ddThh:00:00-tz:00
 			h = atoi(p + 11);
-			if(d != lastd) hO += 24;	// change to hours offset
+			if(d != lastd) hO += 24;        // change to hours offset
 			lastd = d;
 			hvac.m_fcData[idx-1].h = h + hO;
 
@@ -184,10 +186,13 @@ void GetForecast()
 		"&Unit=e&temp=temp&Submit=Submit",
 		NULL
 	};
-	
+
 	bReading = xml.begin("graphical.weather.gov", p_cstr_array);
-//    if(!bReading)
-//        Serial.println("XMLReader connect failed");
+	if(!bReading)
+	{
+		Particle.publish("status", "no forecast connect");
+		hvac.addNotification("Network Error");
+	}
 }
 
 // get value at current minute between hours
@@ -207,23 +212,23 @@ void displayOutTemp()
     int8_t hd = Time.hour() - hvac.m_fcData[0].h;       // hours past 1st value
     int16_t outTemp;
 
-	if(hd < 0)                                          // 1st value is top of next hour
-	{
-		//  Serial.println("future");
-		outTemp = hvac.m_fcData[0].t * 10;              // just use it
-	}
-	else
-	{
-		int m = Time.minute();              // offset = hours past + minutes of hour
-	
-		if(hd) m += (hd * 60);              // add hours ahead (up to 2)
+    if(hd < 0)                                          // 1st value is top of next hour
+    {
+//        Serial.println("future");
+        outTemp = hvac.m_fcData[0].t * 10;              // just use it
+    }
+    else
+    {
+        int m = Time.minute();              // offset = hours past + minutes of hour
 
-		outTemp = tween(hvac.m_fcData[0].t, hvac.m_fcData[1].t, m, hvac.m_fcData[1].h - hvac.m_fcData[0].h);
-	}
+        if(hd) m += (hd * 60);              // add hours ahead (up to 2)
 
-	hvac.updateOutdoorTemp(outTemp);
+        outTemp = tween(hvac.m_fcData[0].t, hvac.m_fcData[1].t, m, hvac.m_fcData[1].h - hvac.m_fcData[0].h);
+    }
 
-	drawButton(5, false, true);
+    hvac.updateOutdoorTemp(outTemp);
+
+    drawButton(5, false, true);
 }
 
 #define Fc_Left     24
@@ -239,14 +244,14 @@ void drawForecast()
 
 	if(hvac.m_fcData[0].h == -1)          // no first run
 		return;
-
+		
 	int8_t hrs = ( ((hvac.m_fcData[0].h - Time.hour()) + 1) % 3 ) + 1;   // Set interval to 2, 5, 8, 11..
 	int8_t mins = (60 - Time.minute() + 54) % 60;   // mins to :54, retry will be :59
 
 	if(mins > 10 && hrs > 2) hrs--;     // wrong
 
 	FcstInterval = ((hrs * 60) + mins) * 60;
-	// Get min/max
+    // Get min/max
 	for(i = 0; i < 18; i++)
 	{
 		int8_t t = hvac.m_fcData[i].t;
@@ -478,7 +483,7 @@ void drawButton(int8_t btn, bool bDown, bool bFast) // draw a button with presse
                     break;
             }
             bBlink = !bBlink;
-            bg = hvac.getRunning() ? (bBlink ? GRAY1:fg) : ILI9341_BLACK;
+            bg = hvac.getState() ? (bBlink ? GRAY1:fg) : ILI9341_BLACK;
             bDeg = true;
             break;
 
@@ -515,9 +520,9 @@ void drawButton(int8_t btn, bool bDown, bool bFast) // draw a button with presse
                 {
                     pszText = (char *)hvac.m_pszNote[i];
                     dispNote = i;
-                    tone(D1, 3000, 150);    // make noise
+                    tone(D1, 3000, 200);    // make noise
                     delay(200);
-                    tone(D1, 3200, 150);
+                    tone(D1, 3200, 200);
                     bg = ILI9341_BLUE;
                     break;
                 }
@@ -661,7 +666,6 @@ void HandleTouch(bool bDown)
             if(dispNote >= 0)
             {
                 hvac.clearNotification(dispNote);
-                dispNote = -1;
             }
             break;
     }
@@ -763,8 +767,7 @@ void displayHvacPins()
 
     if(hvac.checkFilter())
     {
-        if( hvac.addNotification("Change Filter") )
-            hvac.resetFilter();
+        hvac.addNotification("Change Filter");
         drawButton(11, false, false);
     }
 }
@@ -800,22 +803,22 @@ int sf_setVar(String s)
 
 int sf_getVar(String s)
 {
-	return hvac.getVar(s);
+    return hvac.getVar(s);
 }
 
 void UpdateEE()  // check for any changes that haven't been saved
 {
-	EEPROM.put(0, hvac.m_EE);
+    EEPROM.put(0, hvac.m_EE);
 }
 
 void ReadEE()   // read EEPROM on startup
 {
-	if( EEPROM.read( sizeof(EEConfig)-1 ) != 0xAA) // uninitialized
-		return;
+    if( EEPROM.read( sizeof(EEConfig)-1 ) != 0xAA) // uninitialized
+        return;
 
-	EEPROM.get(0, hvac.m_EE);
-	hvac.setMode(hvac.getMode()); // set request mode to EE mode
-	hvac.setHeatMode(hvac.getHeatMode());
+    EEPROM.get(0, hvac.m_EE);
+    hvac.setMode(hvac.getMode()); // set request mode to EE mode
+    hvac.setHeatMode(hvac.getHeatMode());
 }
 
 //------------------------------
@@ -857,27 +860,27 @@ void setup()
 
 void loop()
 {
-	static int8_t lastSec;
-	static int8_t lastHour;
-	static int8_t lastMode;
-	static bool bDown = false;
-	static bool bRun = false;
-	static bool bFan = false;
-	char szPub[128];
+    static int8_t lastSec;
+    static int8_t lastHour;
+    static int8_t lastMode;
+    static bool bDown = false;
+    static uint8_t nState = 0;
+    static bool bFan = false;
+    char szPub[128];
 
-	if( touch.pressed() )
-	{
-		bDown = true;
-		HandleTouch(true);
-	}
-	else
-	{
-		if(bDown)
-		    HandleTouch(false);     // release
-		bDown = false;
-	}
-	
-	while( EncoderCheck() );
+    if( touch.pressed() )
+    {
+        bDown = true;
+        HandleTouch(true);
+    }
+    else
+    {
+        if(bDown)
+            HandleTouch(false);     // release
+        bDown = false;
+    }
+    
+    while( EncoderCheck() );
 
 	if (Time.second() != lastSec)   // things to do every second
 	{
@@ -899,86 +902,90 @@ void loop()
                 Time.zone(tz);
             }
 
-            if(dispNote >= 0)           // if notification
+            if(dispNote >= 0)  // if notification or critical error
             {
-                tone(D1, 3000, 150);    // make noise
+                tone(D1, 3000, 200);    // make noise
                 delay(200);
-                tone(D1, 3200, 150);
+                tone(D1, 3200, 200);
             }
-		}
+	    }
 
-		displayTime();
-		hvac.service();
+        displayTime();
+        hvac.service();
 
-		if(hvac.getMode() != lastMode || hvac.getRunning() != bRun || bFan != hvac.getFanRunning() )   // erase prev highlight
-		{
-			lastMode = hvac.getMode();
-			drawButton(1, false, false);
-			drawButton(2, false, false);
-			sprintf(szPub, "{\"Mode\": %u, \"Run\": %u, \"Fan\": %u}", lastMode, bRun = hvac.getRunning(), bFan = hvac.getFanRunning() );
-			Particle.publish("modeChg", szPub);
-		}
-	
-		drawButton(4, false, false);     // target
-	
-		displayHvacPins();
-	
-		if(bDHT)    // this is 1 sec after acquire
-		{
-			bDHT = false;
-			if(DHT.getStatus()  == DHTLIB_OK)
-			{
-				hvac.updateIndoorTemp( (int)((DHT.getFahrenheit() + DHT_TEMP_ADJUST) * 10), (int)((DHT.getHumidity()+DHT_RH_ADJUST) * 10) );
-	//			Serial.print("Temp: ");
-	//			Serial.println( DHT.getFahrenheit() );
-				drawButton(6, false, true);     // in temp
-				drawButton(7, false, true);     // rh
-			}
-	
-			lUpdateDHT = millis();
-		}
-		else if(millis() - lUpdateDHT >= DHT_PERIOD)
-		{
-			DHT.acquire();
-			bDHT = true;
-		}
-	
-		if(bReading)
-		{
-			bReading = xml.service(tags);
-			if(!bReading)
-			{
-//          Serial.print("XMLReader done: Status = ");
-//          Serial.println(xml.getStatus());
-				switch(xml.getStatus())
-				{
-					case XML_DONE:
-						drawForecast();
-						break;
-					case  XML_TIMEOUT:
-					default:
-						FcstInterval = 5 * 60;    // retry in 5 mins
-						break;
-				}
-			}
-		}
+        if(hvac.getMode() != lastMode || hvac.getState() != nState || bFan != hvac.getFanRunning())   // erase prev highlight
+        {
+            lastMode = hvac.getMode();
+            drawButton(1, false, false);
+            drawButton(2, false, false);
+            sprintf(szPub, "{\"Mode\": %u, \"State\": %u, \"Fan\": %u}", lastMode, nState = hvac.getState(), bFan = hvac.getFanRunning());
+            Particle.publish("stateChg", szPub);
+        }
 
-		if(millis() - lUpdateFcst >= (FcstInterval * 1000) )
-		{
-		    GetForecast();
-		    UpdateEE();          // EE updates will go here for now (every 3 hours)
-		}
-		
-		if(millis() - lUpdateOutTemp >= (5 * 60 * 1000) )        // update every 5 mins
-		{
-		    displayOutTemp();
-		}
-		
-		if(millis() - lBacklightTimer >= (blankSecs*1000) )     // screen blanker
-		{
-		    Backlight(dimLevel);
-		    bScreenOn = false;
-		}
-	}
-	delay(50);
+        drawButton(4, false, false);     // target
+
+        displayHvacPins();
+
+        if(bDHT)    // this is 1 sec after acquire
+        {
+            bDHT = false;
+            if(DHT.getStatus()  == DHTLIB_OK)
+            {
+                hvac.updateIndoorTemp( (int)((DHT.getFahrenheit() + DHT_TEMP_ADJUST) * 10), (int)((DHT.getHumidity()+DHT_RH_ADJUST) * 10) );
+
+//                Serial.print("Temp: ");
+//                Serial.println( DHT.getFahrenheit() );
+                drawButton(6, false, true);     // in temp
+                drawButton(7, false, true);     // rh
+            }
+
+            lUpdateDHT = millis();
+        }
+        else if(millis() - lUpdateDHT >= DHT_PERIOD)
+        {
+		    DHT.acquire();
+		    bDHT = true;
+        }
+
+        if(bReading)
+        {
+            bReading = xml.service(tags);
+            if(!bReading)
+            {
+//              Serial.print("XMLReader done: Status = ");
+//              Serial.println(xml.getStatus());
+                switch(xml.getStatus())
+                {
+                    case XML_DONE:
+                        drawForecast();
+                        Particle.publish("status", "forecast success");
+                        break;
+                    case  XML_TIMEOUT:
+                    default:
+                        Particle.publish("status", "forecast timeout");
+                        hvac.addNotification( "No NDFD Update " );
+                        FcstInterval = 5 * 60;    // retry in 5 mins
+                        break;
+                }
+            }
+        }
+
+        if(millis() - lUpdateFcst >= (FcstInterval * 1000) )
+        {
+            GetForecast();
+            UpdateEE();          // EE updates will go here for now (every 3 hours)
+        }
+
+        if(millis() - lUpdateOutTemp >= (5 * 60 * 1000) )        // update every 5 mins
+        {
+            displayOutTemp();
+        }
+
+        if(millis() - lBacklightTimer >= (blankSecs*1000) )     // screen blanker
+        {
+            Backlight(dimLevel);
+            bScreenOn = false;
+        }
+    }
+    delay(50);
 }
