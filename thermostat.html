@@ -37,7 +37,7 @@
 
 var Json, mode, autoMode, heatMode, fanMode, running, fan
 var modes = new Array('Off', 'Cool', 'Heat', 'Auto')
-var heatmodes = new Array('NG', 'HP', 'Auto')
+var heatmodes = new Array('HP', 'NG', 'Auto')
 
 function readVar(varName)
 {
@@ -74,8 +74,9 @@ function readVar(varName)
 function getVar(varName)
 {
 	requestURL = "https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/getvar/";
-	$.post( requestURL, { params: varName, access_token: document.all.myToken.value }, function(json){
-		settings = json.return_value
+	$.post( requestURL, { params: varName, access_token: document.all.myToken.value }, function(result){
+		Json = JSON.parse(result)
+		settings = Json.return_value
 	   	mode = settings & 3
 		autoMode = (settings >> 2) & 3
 		heatMode = (settings >> 4) & 3
@@ -332,8 +333,8 @@ function secsToTime( elap )
 		<td style="width: 81px" class="style1">HeatMode</td>
 		<td style="width: 44px" class="style1"><div name="heatmode" id="heatmode">Gas</div></td>
 		<td style="width: 200px" class="style1">
-		<input type="button" value="Gas" onClick="{setHeatMode(0)}">
-		<input type="button" value="Elec" onClick="{setHeatMode(1)}">
+		<input type="button" value="HP" onClick="{setHeatMode(0)}">
+		<input type="button" value="Gas" onClick="{setHeatMode(1)}">
 		<input type="button" value="Auto" onClick="{setHeatMode(2)}">
 		</td>
 	</tr>
