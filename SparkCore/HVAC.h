@@ -14,7 +14,7 @@ typedef struct
 	uint16_t t2;		// end temp
 	uint16_t rh1;		// start rh
 	uint16_t rh2;		// end rh
-	uint8_t mode;		// mode
+	uint8_t state;		// current state
 } Log;  // 16 bytes
 
 enum Mode
@@ -42,7 +42,7 @@ typedef struct EEConfig_
 	uint16_t cycleMin;	// min time to run
 	uint16_t cycleMax;	// max time to run
 	uint16_t idleMin;	// min time to not run
-	uint16_t filterMinutes; // resettable minutes run timer (200 hours is standard change interval)
+	uint16_t filterMinutes;	// resettable minutes run timer (200 hours is standard change interval)
 	uint16_t fanPostDelay;	// delay to run auto fan after heat/cool stops
 	uint16_t overrideTime;	// time used for an override
 	uint8_t  heatMode;	// heating mode (gas, electric)
@@ -54,9 +54,9 @@ class HVAC
 {
 public:
 	HVAC(void);
-	void	service(void);		// call once per second
-	bool    getRunning(void);       // return running
-	bool    getFanRunning(void);    // return fan state (even simulated)
+	void	service(void);			// call once per second
+	uint8_t getState(void);       // return current run state
+	bool    getFanRunning(void);    // return running
 	int8_t  getMode(void);          // actual mode
 	uint8_t getHeatMode(void);      // heat mode
 	int8_t  getAutoMode(void);      // get current auto heat/cool mode
@@ -64,8 +64,8 @@ public:
 	void	setMode(int8_t mode);	// request new mode; see enum Mode
 	void    setHeatMode(uint8_t mode); // heat mode
 	bool    getFan(void);           // is fan on
-	void	setFan(bool on);	// auto/on mode
-	void    fanTimeAccum(void);
+	void	setFan(bool on);		// auto/on mode
+	void    filterInc(void);
 	int16_t getSetTemp(int8_t mode, int8_t hl); // get temp set for a mode (cool/heat)
 	void	setTemp(int8_t mode, int16_t Temp, int8_t hl); // set temp for a mode
 	void	updateIndoorTemp(int16_t Temp, int16_t rh);
@@ -83,9 +83,9 @@ public:
 	EEConfig m_EE;
 	char    m_szResult[200];
 	Forecast m_fcData[20];
-	int16_t m_outTemp		// adjusted current temp *10
-	int16_t	m_inTemp;		// current adjusted indoor temperature *10
-	uint16_t m_targetTemp		// end temp for cycle
+	int16_t m_outTemp;          // adjusted current temp *10
+	int16_t	m_inTemp;		    // current adjusted indoor temperature *10
+	uint16_t m_targetTemp;      // end temp for cycle
 	const char *m_pszNote[8];
 
 private:
@@ -97,14 +97,14 @@ private:
 	int     CmdIdx(String s, const char **pCmds);
 	void	simulator(void);
 
-	bool	m_bFanMode;		// Auto=false, On=true
+	bool	m_bFanMode;		    // Auto=false, On=true
 	bool	m_bFanRunning;		// when fan is running
-	int8_t	m_AutoMode;		// cool, heat
-	int8_t	m_setMode;		// new mode request
-	int8_t	m_setHeat;		// new heat mode request
-	int8_t	m_AutoHeat;		// auto heat mode choice
-	bool	m_bRunning;		// is operating
-	bool	m_bStart;		// signal to start
+	int8_t	m_AutoMode;		    // cool, heat
+	int8_t	m_setMode;		    // new mode request
+	int8_t	m_setHeat;		    // new heat mode request
+	int8_t	m_AutoHeat;		    // auto heat mode choice
+	bool	m_bRunning;	    	// is operating
+	bool	m_bStart;		    // signal to start
 	bool	m_bStop;	    	// signal to stop
 	bool    m_bRecheck;
 	uint16_t m_runTotal;		// time HVAC has been running total since reset
@@ -118,11 +118,11 @@ private:
 	int16_t m_startingTemp;		// temp at start of cycle *10
 	int16_t m_startingRh;		// rh at start of cycle *10
 	int8_t  m_outMin[2], m_outMax[2];
-	int8_t  m_ovrTemp		// override delta of target
+	int8_t  m_ovrTemp;          // override delta of target
 	Log     m_logs[32]; 		// 512 bytes
-	uint16_t m_remoteTimeout	// timeout for remote sensor
-	uint16_t m_remoteTimer		// in seconds
-	int8_t	m_furnaceFan;		// fake fan timer
+    uint16_t m_remoteTimeout;   // timeout for remote sensor
+    uint16_t m_remoteTimer;     // in seconds
+	int8_t	m_furnaceFan;	    // fake fan timer
 };
 
 #define	P_FAN	D4
