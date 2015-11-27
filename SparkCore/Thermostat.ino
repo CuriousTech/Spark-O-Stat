@@ -15,8 +15,8 @@
 #include "HVAC.h"
 #include "Encoder.h"
  
-#define FONT_SPAC	6
-#define FONT_		8
+#define FONT_SPACE	6
+#define FONT_Y		8
 #define CYAN		0xfe00	
 #define BRIGHT_RED	0xc03f	
 #define GRAY1		0x8410  
@@ -24,9 +24,9 @@
 
 //#define T_CAL     // switch to touchscreen calibration mode (draws hits and 4 temp buttons are calibration values adjusted by thumbwheel)
 
-#define DHT_TEMP_ADJUS	(-3.0)	// Adjust indoor temp by degrees
-#define DHT_RH_ADJUS	(3.0)	// Adjust indoor Rh by %
-#define DHT_PERIO  (15 * 1000)  // 15 seconds
+#define DHT_TEMP_ADJUST	 (-3.0)	// Adjust indoor temp by degrees
+#define DHT_RH_ADJUST	  (3.0)	// Adjust indoor Rh by %
+#define DHT_PERIOD  (15 * 1000)  // 15 seconds
 
 #define ONE_DAY_MILLIS (24 * 60 * 60 * 1000)
 
@@ -190,7 +190,7 @@ void GetForecast()
 	bReading = xml.begin("graphical.weather.gov", p_cstr_array);
 	if(!bReading)
 	{
-		Particle.publish("status", "no forecast connect");
+		Particle.publish("status", "forecast fail");
 		hvac.addNotification("Network Error");
 	}
 }
