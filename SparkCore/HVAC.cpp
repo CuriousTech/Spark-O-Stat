@@ -377,7 +377,7 @@ void HVAC::calcTargetTemp(int8_t mode)
 			}
 			break;
 	}
-	m_targetTemp +=  + m_ovrTemp; // override is normally 0, unless set remotely with a timeout
+	m_targetTemp += m_ovrTemp; // override is normally 0, unless set remotely with a timeout
 	Serial.print(" target=");
 	Serial.println(m_targetTemp);
 }
@@ -782,6 +782,7 @@ int HVAC::setVar(String s)
 		case 15:    // override
 			if(val <= 0)    // cancel
 			{
+				m_ovrTemp = 0;
 				m_overrideTimer = 0;
 				m_bRecheck = true;
 			}
