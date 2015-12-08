@@ -17,15 +17,17 @@
  
 #define FONT_SPACE	6
 #define FONT_Y		8
-#define CYAN		0xfe00	
-#define BRIGHT_RED	0xc03f	
-#define GRAY1		0x8410  
-#define GRAY2		0x4208  
+#define CYAN		0xfe00
+#define BRIGHT_RED	0xc03f
+#define GRAY1		0x8410
+#define GRAY2		0x4208
+
+SYSTEM_MODE(SEMI_AUTOMATIC);
 
 //#define T_CAL     // switch to touchscreen calibration mode (draws hits and 4 temp buttons are calibration values adjusted by thumbwheel)
 
-#define DHT_TEMP_ADJUST	 (-3.0)	// Adjust indoor temp by degrees
-#define DHT_RH_ADJUST	  (3.0)	// Adjust indoor Rh by %
+#define DHT_TEMP_ADJUST	(-3.0)	// Adjust indoor temp by degrees
+#define DHT_RH_ADJUST    (3.0)	// Adjust indoor Rh by %
 #define DHT_PERIOD  (15 * 1000)  // 15 seconds
 
 #define ONE_DAY_MILLIS (24 * 60 * 60 * 1000)
@@ -190,7 +192,7 @@ void GetForecast()
 	bReading = xml.begin("graphical.weather.gov", p_cstr_array);
 	if(!bReading)
 	{
-		Particle.publish("status", "forecast fail");
+		Particle.publish("status", "forecast failed");
 		hvac.addNotification("Network Error");
 	}
 }
@@ -251,7 +253,7 @@ void drawForecast()
 	if(mins > 10 && hrs > 2) hrs--;     // wrong
 
 	FcstInterval = ((hrs * 60) + mins) * 60;
-    // Get min/max
+	// Get min/max
 	for(i = 0; i < 18; i++)
 	{
 		int8_t t = hvac.m_fcData[i].t;
@@ -609,9 +611,9 @@ void HandleTouch(bool bDown)
 
         if(lastX != -1)
         {
-		    tft.drawFastHLine(lastX-20, lastY, 40, ILI9341_BLACK);
-		    tft.drawFastVLine(lastX, lastY-20, 40, ILI9341_BLACK);
-		    tft.drawCircle(lastX, lastY, 15, ILI9341_BLACK);
+		tft.drawFastHLine(lastX-20, lastY, 40, ILI9341_BLACK);
+		tft.drawFastVLine(lastX, lastY-20, 40, ILI9341_BLACK);
+		tft.drawCircle(lastX, lastY, 15, ILI9341_BLACK);
         }
         tft.drawFastHLine(x-20, y, 40, ILI9341_CYAN);
         tft.drawFastVLine(x, y-20, 40, ILI9341_CYAN);
@@ -850,9 +852,9 @@ void setup()
 	lUpdateFcst = millis();
 	lBacklightTimer = millis();
 	
-	FcstInterval = 15; // first time = 30 seconds
+	FcstInterval = 40; // first time = 30 seconds
 	DrawButtons();
-	
+
 	DHT.acquire();
 	bDHT = true;
 	hvac.enable();
@@ -882,11 +884,17 @@ void loop()
     
     while( EncoderCheck() );
 
-	if (Time.second() != lastSec)   // things to do every second
+	if(Time.second() != lastSec)   // things to do every second
 	{
+
+        if(!Particle.connected())
+        {
+            Particle.connect();
+        }
+        
 		lastSec = Time.second();
 
-        if (millis() - lastSync >= ONE_DAY_MILLIS)
+        if(millis() - lastSync >= ONE_DAY_MILLIS)
         {
             Particle.syncTime();       // time sync every 24 hours
             lastSync = millis();
