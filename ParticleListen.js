@@ -15,6 +15,7 @@ function OnCall(msg, data)
 			if(Http.Connected)
 			{
 				Pm.SparkRemote( 'StreamStatus', 1)
+				Pm.SparkRemote( 'CloudStatus', 1) // assume it's connected
 				break
 			}
 			if( Http.Connect( eventUrl ) ) // Start the event stream
@@ -24,6 +25,7 @@ function OnCall(msg, data)
 			Pm.SetTimer(60*1000)		// recheck every 60 seconds
 			break
 		case 'HTTPDATA':
+//			Pm.Echo('Data ' + data)
 			heartbeat = new Date()
 			if(data.length <= 2) break // keep-alive heartbeat
 			lines = data.split('\n')
@@ -31,7 +33,6 @@ function OnCall(msg, data)
 				procLine(lines[i])
 			break
 		case 'HTTPCLOSE':
-			Pm.Echo( 'Particle disconected ' + data)
 			Pm.SparkRemote( 'StreamStatus', 0)
 			break
 		case 'HTTPSTATUS':
@@ -82,18 +83,16 @@ function procLine(data)
 	switch(event)
 	{
 		case 'spark/status':
-			Pm.Echo('Status ' + Json.data) // online / offline status
 			online = (Json.data == 'online') ? true:false
+			Pm.SparkRemote( 'CloudStatus', online)
 			break
 		case 'spark/flash/status':
 			Pm.Echo('Flash Status ' + Json.data) // flash status
 			break
 		case 'spark/cc3000-patch-version': // this posts every time the device comes online
-			Pm.Echo('cc3000 version: ' + Json.data)
 			cc3000version = Json.data
 			break
 		case 'stateChg':	// Mine.  mode/state/fan change
-
 			d = isoDateToJsDate( Json.published_at )
 //			Pm.Echo('pub at ' + d)
 
@@ -104,15 +103,14 @@ function procLine(data)
 
 			LogHVAC( Math.floor( d.getTime() / 1000), Json.State, Json.Fan )
 
-			Pm.SparkRemote('UPDATE')
+			Pm.SparkRemote('UPDATE', Json.State, Json.Fan)
 			OnTimer()  // read the rest of the data
 			break
-		case 'error':
-			Pm.Echo('Error: ' + Json.data)
-			Pm.Beep(0)
+		case 'status':
+			Pm.Echo('PL Status: ' + Json.data)
 			break
 		default:
-			Pm.Echo('Unknown event: ' + event)
+			Pm.Echo('PL Unknown event: ' + event)
 			break	
 	}
 }
