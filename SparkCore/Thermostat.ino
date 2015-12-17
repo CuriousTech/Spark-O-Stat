@@ -23,6 +23,7 @@
 #define GRAY2		0x4208
 
 SYSTEM_MODE(SEMI_AUTOMATIC);
+SYSTEM_THREAD(ENABLED);
 
 //#define T_CAL     // switch to touchscreen calibration mode (draws hits and 4 temp buttons are calibration values adjusted by thumbwheel)
 
@@ -253,13 +254,13 @@ void drawForecast()
 	if(mins > 10 && hrs > 2) hrs--;     // wrong
 
 	FcstInterval = ((hrs * 60) + mins) * 60;
-	// Get min/max
+    // Get min/max
 	for(i = 0; i < 18; i++)
 	{
 		int8_t t = hvac.m_fcData[i].t;
 		if(min > t) min = t;
 		if(max < t) max = t;
-	}
+    }
 
 	if(min == max) max++;   // div by 0 check
 	
@@ -284,8 +285,8 @@ void drawForecast()
 		if( t < -9 || t > 9) x -= FONT_SPACE;   // 2 digit
 		if( t > 99) x -= FONT_SPACE;            // another digit (probably not -100)
 
-		tft.setCursor(x, y-(FONT_Y>>1));
-		tft.print(t);
+        tft.setCursor(x, y-(FONT_Y>>1));
+        tft.print(t);
 		tft.drawFastHLine(Fc_Left, y, Fc_Right-Fc_Left, GRAY1);
 		y += incy;
 		t -= dec;
@@ -611,9 +612,9 @@ void HandleTouch(bool bDown)
 
         if(lastX != -1)
         {
-		tft.drawFastHLine(lastX-20, lastY, 40, ILI9341_BLACK);
-		tft.drawFastVLine(lastX, lastY-20, 40, ILI9341_BLACK);
-		tft.drawCircle(lastX, lastY, 15, ILI9341_BLACK);
+		    tft.drawFastHLine(lastX-20, lastY, 40, ILI9341_BLACK);
+		    tft.drawFastVLine(lastX, lastY-20, 40, ILI9341_BLACK);
+		    tft.drawCircle(lastX, lastY, 15, ILI9341_BLACK);
         }
         tft.drawFastHLine(x-20, y, 40, ILI9341_CYAN);
         tft.drawFastVLine(x, y-20, 40, ILI9341_CYAN);
@@ -823,6 +824,28 @@ void ReadEE()   // read EEPROM on startup
     hvac.setHeatMode(hvac.getHeatMode());
 }
 
+// signalStrength should be mapped into 0..+127
+void drawSignal(int x, int y, int wh)
+{
+	int signalStrength = -WiFi.RSSI();
+    int dist = wh  / 10; // distance between blocks
+    int sect = 127 / 10; //
+
+    tft.drawRoundRect(x, y, wh, wh, 3, ILI9341_BLUE);
+
+    x += dist>>1;                    // set starting point for first line
+    y += wh - (dist>>1);
+    
+    for (int i = 0; i < 10; i++)
+    {
+        int h = (i+1)*dist;
+        if (signalStrength > i * sect)    // draw bar if signal strength is above threshold
+            tft.drawLine(x + i*dist, y, x + i*dist, y - (i+1)*dist, ILI9341_GREEN);
+        else // otherwise don't draw and bail out
+            tft.drawLine(x + i*dist, y, x + i*dist, y - (i+1)*dist, GRAY2);
+    }
+}
+
 //------------------------------
 void setup()
 {
@@ -920,6 +943,7 @@ void loop()
 
         displayTime();
         hvac.service();
+//        drawSignal(150, 90, 40);
 
         if(hvac.getMode() != lastMode || hvac.getState() != nState || bFan != hvac.getFanRunning())   // erase prev highlight
         {
