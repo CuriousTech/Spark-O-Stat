@@ -16,7 +16,6 @@
 
 HVAC::HVAC()
 {
-	m_EE.fanPostDelay = 120; 	// 90 seconds after compressor stops
 	m_EE.filterMinutes = 0;
 	m_EE.cycleMin = 60;		    // 60 seconds minimum for a cycle
 	m_EE.cycleMax = 60*15;		// 15 minutes maximun for a cycle
@@ -27,6 +26,8 @@ HVAC::HVAC()
 	m_EE.heatTemp[1] = 740;		// 74.0
 	m_EE.heatTemp[0] = 700;		// 70.0
 	m_EE.eHeatThresh = 30;		// Setting this low (30 deg) for now
+	m_EE.fanPostDelay[0] = 60;  // 1 minute after compressor stops (HP)
+	m_EE.fanPostDelay[1] = 120; // 2 minutes after compressor stops (cool)
 	m_EE.overrideTime = 10 * 60;	// setting for override
 	m_EE.id = 0xAA55;		    // EE value for validity check or struct size changes
 
@@ -138,10 +139,10 @@ void HVAC::service()
 	}
 
 	int8_t hm = (m_EE.heatMode == Heat_Auto) ? m_AutoHeat : m_EE.heatMode;
+	int8_t mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode;
 
 	if(m_bStart && !m_bRunning)	            // Start signal occurred
 	{
-		int8_t mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode;
 		m_bStart = false;
 
 		switch(mode)
@@ -189,13 +190,13 @@ void HVAC::service()
 
 		if(m_bFanRunning && m_bFanMode == false) // Note: furance manages fan
 		{
-			if(m_EE.fanPostDelay)			    // leave fan running to circulate air longer
-				m_fanPostTimer = m_EE.fanPostDelay;
+			if(m_EE.fanPostDelay[digitalRead(P_REV)])			    // leave fan running to circulate air longer
+				m_fanPostTimer = m_EE.fanPostDelay[digitalRead(P_REV)]; // P_REV == true if cooling
 			else
 				fanSwitch(false);
 		}
 		
-		if(hm)                  // count run time as fan time in winter
+		if(mode == Mode_Heat && hm)    // count run time as fan time in winter
 		{			         // furnace post fan is 120 seconds
 			m_furnaceFan = FF_DELAY;
 		}
@@ -636,6 +637,7 @@ static const char *cGCmds[] =
 	"interface",
 	"settings",
 	"log",
+	"rssi",
 	NULL
 };
 
@@ -660,7 +662,7 @@ int HVAC::getVar(String s)
 			r |= (getFanRunning() ? 0x100:0); // 1
 			r |= (m_ovrTemp ? 0x200:0);     // 1
 			r |= m_EE.eHeatThresh << 10;    // 6 (6.3 max)
-			r |= m_EE.fanPostDelay << 16;	// 8 (255)
+			r |= m_EE.fanPostDelay[digitalRead(P_REV)] << 16;	// 8 (255)
 			r |= m_EE.cycleThresh << 24; 	// 8
 			
 			for(i = 0; i < 32; i++)         // count how many left for return value
@@ -688,6 +690,9 @@ int HVAC::getVar(String s)
     			    // 77
 			}
 			break;
+		case 3:
+            r = WiFi.RSSI();
+		    break;
 	}
 	return r;
 }
@@ -718,6 +723,7 @@ static const char *cSCmds[] =
 };
 
 // Spark cloud vars (warning: returns button # to refresh)
+// Todo: Change to return useful value, and refresh to &button
 int HVAC::setVar(String s)
 {
 	int off = s.indexOf(',');
@@ -746,7 +752,7 @@ int HVAC::setVar(String s)
 			resetFilter();
 			return 11;
 		case 5:     // fanpostdelay
-			m_EE.fanPostDelay = constrain(val, 0, 60*5); // Limit 0 to 5 minutes
+			m_EE.fanPostDelay[digitalRead(P_REV)] = constrain(val, 0, 60*5); // Limit 0 to 5 minutes
 			break;
 		case 6:     // cyclenmin
 			m_EE.cycleMin = constrain(val, 60, 60*20); // Limit 1 to 20 minutes
@@ -782,7 +788,7 @@ int HVAC::setVar(String s)
 		case 15:    // override
 			if(val <= 0)    // cancel
 			{
-				m_ovrTemp = 0;
+    		    m_ovrTemp = 0;
 				m_overrideTimer = 0;
 				m_bRecheck = true;
 			}
