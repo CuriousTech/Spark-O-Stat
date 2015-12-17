@@ -22,6 +22,7 @@
 	var settings
 
 	streaming = false
+	cloud = false
 	online = true
 
 	Pm.Window('SparkRemote')
@@ -31,22 +32,25 @@
 
 	Pm.ParticleListen()
 
-	Pm.SetTimer(4*60*1000)
+	Pm.SetTimer(2*60*1000)
 	OnTimer()
 
 // Handle published events
-function OnCall(msg, data)
+function OnCall(msg, data, d2)
 {
 	switch(msg)
 	{
 		case 'HTTPSTATUS':
 			switch(+data)
 			{
+				case 400: s = 'Bad request'; break
+				case 408: s = 'Request timeout'; break
 				case 12002: s = 'Timeout'; break
+				case 12152: s =  'INVALID_SERVER_RESPONSE'; break
 				case 12157: s =  'Enable Internet Options-> Advanced -> SSL2/3'; break
 				default: s = ' '
 			}
-			Pm.Echo( ' Particle error: ' + data + ' ' + s)
+			Pm.Echo( ' ParticleRemote error: ' + data + ' ' + s)
 			break
 		case 'HTTPDATA':
 			procLine(data)
@@ -59,11 +63,20 @@ function OnCall(msg, data)
 			streaming = +data
 			break
 
+		case 'CloudStatus':
+			Pm.Echo('Cloud ' + data)
+			cloud = +data
+			break
+
+			Pm.Echo('Cloud status ' + Json.data) // online / offline status
+
+
 		case 'BUTTON':
 			switch(data)
 			{
 				case 0:		// Override
-					SetVar('override', (ovrActive) ? 0:(Reg.overrideTemp * 10))
+					ovrActive = !ovrActive
+					SetVar('override', ovrActive ? (Reg.overrideTemp * 10) : 0)
 					break
 				case 1:		// reset filter
 					SetVar('resetfilter', 0)
@@ -79,6 +92,7 @@ function OnCall(msg, data)
 					heatMode = (heatMode+1) % 3; SetVar('heatMode', heatMode)
 					break
 				case 5:		// Unused
+					GetVar( 'rssi' )
 					break
 				case 6:		// cool H up
 					setTemp(1, coolTempH + 0.1, 1); SetVar('cooltemph', (coolTempH * 10).toFixed())
@@ -93,16 +107,16 @@ function OnCall(msg, data)
 					setTemp(1, coolTempL - 0.1, 0); SetVar('cooltempl', (coolTempL * 10).toFixed())
 					break
 				case 10:		// heat H up
-					setTemp(2, heatTempH + 0.1, 1); SetVar('heattemph', (heatTempH * 10).toFixed())
+					setTemp(2, heatTempH + 0.2, 1); SetVar('heattemph', (heatTempH * 10).toFixed())
 					break
 				case 11:		// heat H dn
-					setTemp(2, heatTempH - 0.1, 1); SetVar('heattemph', (heatTempH * 10).toFixed())
+					setTemp(2, heatTempH - 0.2, 1); SetVar('heattemph', (heatTempH * 10).toFixed())
 					break
 				case 12:		// heat L up
-					setTemp(2, heatTempL + 0.1, 0); SetVar('heattempl', (heatTempL * 10).toFixed())
+					setTemp(2, heatTempL + 0.2, 0); SetVar('heattempl', (heatTempL * 10).toFixed())
 					break
 				case 13:		// heat L dn
-					setTemp(2, heatTempL - 0.1, 0); SetVar('heattempl', (heatTempL * 10).toFixed())
+					setTemp(2, heatTempL - 0.2, 0); SetVar('heattempl', (heatTempL * 10).toFixed())
 					break
 				case 14:		// thresh up
 					if(cycleThresh < 6.3){ cycleThresh += 0.1; SetVar('cyclethresh', (cycleThresh * 10).toFixed()); }
@@ -135,7 +149,7 @@ function OnCall(msg, data)
 					cycleMax--; SetVar('cyclemax', cycleMax)
 					break
 				case 24:		// override time up
-				overrideTime+=60; SetVar('overridetime', overrideTime)
+					overrideTime+=60; SetVar('overridetime', overrideTime)
 					break
 				case 25:		// override time dn
 					overrideTime-=10; SetVar('overridetime', overrideTime)
@@ -151,6 +165,13 @@ function OnCall(msg, data)
 			break
 
 		case 'UPDATE':
+			switch(+data)
+			{
+				case 0: running = 0; break
+				case 1: running = 1; break
+				case 2: running = 1; break
+			}
+			fan = +d2
 			Draw()
 			break
 
@@ -166,14 +187,14 @@ function SetVar(v, val)
 	Http.Connect( particleUrl + deviceID + '/setvar?access_token=' + token, 'POST', 'params=' + v + ',' + val )
 }
 
+function GetVar(v)
+{
+	event = 'getvar'
+	Http.Connect( particleUrl + deviceID + '/getvar?access_token=' + token, 'POST', 'params=' + v )
+}
+
 function procLine(data)
 {
-	if( !data.indexOf('}') ) // no event or bad format?
-	{
-		Pm.Echo('Particle: Unexpected data: ' + data)
-		return
-	}
-
 //Pm.Echo('Line: ' + data)
 	Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 			data.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + data + ')')
@@ -193,7 +214,6 @@ function procLine(data)
 			eHeatThresh = (settings >> 10) & 0x3F
 			fanDelay = (settings >> 16) & 0xFF
 			cycleThresh = ((settings >> 24) & 0xFF) / 10
-
 			event = 'settings_result'
 			Http.Connect( particleUrl + deviceID + '/result?access_token=' + token )
 			break
@@ -277,6 +297,10 @@ function procLine(data)
 //			Pm.Echo('setvar ' + Json.return_value)
 			break
 
+		case 'getvar':
+			Pm.Echo('getvar ' + Json.return_value)
+			break
+
 		default:
 			Pm.Echo('SR Unknown event: ' + event)
 			break	
@@ -354,11 +378,12 @@ function Draw()
 	Gdi.Brush( online ? Gdi.Argb(255, 25, 25, 255) : Gdi.Argb(255, 255, 0, 0) )
 	Gdi.Text( 'X', Gdi.Width-17, 1 )
 
-	Gdi.Font( 'Arial' , 13, 'Regular')
+	Gdi.Font( 'Arial' , 11, 'Regular')
 	Gdi.Brush( Gdi.Argb(255, 255, 255, 255) )
 
 	date = new Date()
 	Gdi.Text( date.toLocaleTimeString(), Gdi.Width-84, 2 )
+	Gdi.Font( 'Arial' , 13, 'Regular')
 
 	x = 5
 	y = 22
@@ -407,7 +432,7 @@ function Draw()
 	Gdi.Text('ovr Time:', x, y); 	Gdi.Text(overrideTime , x + 112, y, 'Time')
 	y += bh
 	a = Reg.overrideTemp
-	Gdi.Text('ovr Temp:', x, y);  Gdi.Text(a + '°' , x + 112, y, 'Right')
+	Gdi.Text('Override:', x, y);  Gdi.Text(a + '°' , x + 112, y, 'Right')
 
 	if(ovrActive)
 		Gdi.Pen(Gdi.Argb(255,255,20,20), 2 )	// Button square
@@ -464,7 +489,7 @@ function ShadowText(str, x, y, clr)
 	Gdi.Brush( clr )
 	Gdi.Text( str, x, y, 'Center')
 }
-
+/*
 function LogHVAC( uxt, state, fan )
 {
 	fso = new ActiveXObject( 'Scripting.FileSystemObject' )
@@ -474,7 +499,7 @@ function LogHVAC( uxt, state, fan )
 	tf.Close()
 	fso = null
 }
-
+*/
 function LogTemps( stat, fan, inTemp, targetTemp, inrh )
 {
 	if(targetTemp == 0)
