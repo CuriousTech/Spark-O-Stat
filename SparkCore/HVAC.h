@@ -43,7 +43,7 @@ typedef struct EEConfig_
 	uint16_t cycleMax;	// max time to run
 	uint16_t idleMin;	// min time to not run
 	uint16_t filterMinutes;	// resettable minutes run timer (200 hours is standard change interval)
-	uint16_t fanPostDelay;	// delay to run auto fan after heat/cool stops
+	uint16_t fanPostDelay[2];	// delay to run auto fan after [hp][cool] stops
 	uint16_t overrideTime;	// time used for an override
 	uint8_t  heatMode;	// heating mode (gas, electric)
 	uint8_t  res;		//
