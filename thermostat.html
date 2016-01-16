@@ -20,8 +20,7 @@
 	background-color: #C0C0C0;
 }
 .style5 {
-	border-width: 0;
-	background-color: #00FF00;
+	background-color: #00AAC0;
 }
 .style6 {
 	border-style: solid;
@@ -38,7 +37,7 @@
 var Json, mode, autoMode, heatMode, fanMode, running, fan
 var modes = new Array('Off', 'Cool', 'Heat', 'Auto')
 var heatmodes = new Array('HP', 'NG', 'Auto')
-
+var polling=false
 function readVar(varName)
 {
 	requestURL = "https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/" + varName + "/?access_token=" + document.all.myToken.value;
@@ -89,15 +88,23 @@ function getVar(varName)
 		document.all.thresh.value = ((settings >> 24) & 0xFF) / 10
 	
 		document.all.fan.innerHTML = fan ? "Fan On" : "Fan Off"
-		document.all.fanCell.setAttribute('class', fan ? 'style5' : 'style1');
+		document.all.fanCell.setAttribute('class', fan ? 'style5' : 'style1')
+		document.all.fAuto.setAttribute('class', fanMode == 0 ? 'style5':'')
+		document.all.fOn.setAttribute('class', fanMode == 1 ? 'style5':'')
 	
-		document.all.fanmode.innerHTML = fanMode ? "On" : "Auto"
 		m = (mode == 4) ? autoMode : mode
 		document.all.run.innerHTML = running ? modes[m] : "Idle"
 		document.all.runCell.setAttribute('class', running ? 'style5' : 'style1');
 	
-		document.all.mode.innerHTML = modes[mode]
-		document.all.heatmode.innerHTML = heatmodes[heatMode]
+		document.all.mOff.setAttribute('class', mode == 0 ? 'style5':'')
+		document.all.mCool.setAttribute('class', mode == 1 ? 'style5':'')
+		document.all.mHeat.setAttribute('class', mode == 2 ? 'style5':'')
+		document.all.mAuto.setAttribute('class', mode == 3 ? 'style5':'')
+
+		document.all.hHP.setAttribute('class', heatMode == 0 ? 'style5':'')
+		document.all.hGas.setAttribute('class', heatMode == 1 ? 'style5':'')
+		document.all.hAuto.setAttribute('class', heatMode == 2 ? 'style5':'')
+
 		readVar( 'result' )	// result set by settings call
 	});
 }
@@ -113,27 +120,32 @@ function getAll()
  	getVar('settings')
 }
 
-function togglefan()
+function setfan(n)
 {
-	fanMode = !fanMode
+	fanMode = n
+	fan = fanMode ? 1:run
 	setVar('fanmode', fanMode ? 1:0)
-	document.all.fanmode.innerHTML = fanMode ? "On" : "Auto"
-	document.all.fan.innerHTML = "Fan " + (fanMode ? "On" : (fan ? "Off":"On"))
+	document.all.fAuto.setAttribute('class', fanMode == 0 ? 'style5':'')
+	document.all.fOn.setAttribute('class', fanMode == 1 ? 'style5':'')
+	document.all.fan.innerHTML = "Fan " + (fanMode ? "On" : (fan ? "On":"Off"))
 	document.all.fanCell.setAttribute('class', fan ? 'style5' : 'style1');
 }
 
 function setMode(m)
 {
-	mode = m
-	setVar('mode', mode)
-	document.all.mode.innerHTML = modes[mode]
+	setVar('mode', mode = m)
+	document.all.mOff.setAttribute('class', mode == 0 ? 'style5':'')
+	document.all.mCool.setAttribute('class', mode == 1 ? 'style5':'')
+	document.all.mHeat.setAttribute('class', mode == 2 ? 'style5':'')
+	document.all.mAuto.setAttribute('class', mode == 3 ? 'style5':'')
 }
 
 function setHeatMode(m)
 {
-	heatMode = m
-	setVar('heatmode', heatMode)
-	document.all.heatmode.innerHTML = heatmodes[heatMode]
+	setVar('heatmode', heatMode = m)
+	document.all.hHP.setAttribute('class', heatMode == 0 ? 'style5':'')
+	document.all.hGas.setAttribute('class', heatMode == 1 ? 'style5':'')
+	document.all.hAuto.setAttribute('class', heatMode == 2 ? 'style5':'')
 }
 
 function setCoolHi()
@@ -249,6 +261,7 @@ function secsToTime( elap )
   if(myStorage1  != null){
 	document.all.myToken.style.visibility = 'hidden'  // hide sensitive data. remove these if irritating
 	document.all.myDeviceId.style.visibility = 'hidden'
+	document.all.hide.value='Show'
 	document.getElementById('myToken').value = myStorage1
   }
     
@@ -275,23 +288,42 @@ function secsToTime( elap )
 <input id="myToken" name="access_token" type=text size=50 placeholder="5622ce6bba702ef6bd3456d5ed26aaa4a28d7c9" style="width: 265px"></td>
 	</tr>
 </table>
-<input type="button" value="Store ID and Token" onClick="{
+<input type="button" value="Save" onClick="{
    localStorage.setItem('myStoredText1', document.all.myToken.value)
    localStorage.setItem('myStoredText2', document.all.myDeviceId.value)
    alert( +document.all.myDeviceId.value + ' ' + document.all.myToken.value + ' \nHas been stored')
 }">
-<input type="button" value="Hide"  onClick="{
-    document.all.myToken.style.visibility = 'hidden'
-    document.all.myDeviceId.style.visibility = 'hidden'
-}">
-<input type="button" value="Show" style="background-color:lime" onClick="{
-    document.all.myToken.style.visibility = 'visible'
-    document.all.myDeviceId.style.visibility = 'visible'
+<input type="button" value="Hide" name="hide" onClick="{
+	if(document.all.myToken.style.visibility == 'hidden'){
+    document.all.myToken.style.visibility = document.all.myDeviceId.style.visibility = 'visible'
+	document.all.hide.value='Hide'
+	}else{
+    document.all.myToken.style.visibility = document.all.myDeviceId.style.visibility = 'hidden'
+	document.all.hide.value='Show'
+    }
 }">
 <input type="button" value="Refresh" onClick="{getAll()}">
+<input type="button" value="Poll" name="poll" onClick="{
+    if(document.all.myPoll.value < 5){document.all.myPoll.value = 5}
+    getAll()
+    clearInterval(document.myPollSave)
+    if(polling==false)
+    {
+	 	document.all.poll.value='Stop'
+	 	polling = true
+	    document.myPollSave = setInterval('getAll();',document.all.myPoll.value*1000)
+    }
+    else
+    {
+	 	polling = false
+	 	document.all.poll.value='Poll'
+    }
+	document.all.poll.setAttribute('class', polling ? 'style5':'')
+}">
+every <input type=text size=4 value=20 id="myPoll">Secs
 <br>
 <br>
-<table style="width: 360px; height: 22px;" cellspacing="0">
+<table style="width: 350px; height: 22px;" cellspacing="0">
 	<tr>
 		<td class="style3">In</td>
 		<td class="style4"><div name="intemp" id="intemp" class="style2">in</div></td>
@@ -307,35 +339,29 @@ function secsToTime( elap )
 	</tr>
 </table>
 <br>
-<table style="width: 360px" class="style6" cellspacing="1" cellpadding="0">
+<table style="width: 350px" class="style6" cellspacing="1" cellpadding="0">
 	<tr>
-		<td style="width: 81px" id="fanCell" class="style1"><div name="fan1" id="fan">Fan Off</div></td>
-		<td style="width: 44px" class="style1"><div name="fan" id="fanmode">Auto</div></td>
-		<td style="width: 200px" class="style1"><input type="button" value="Toggle" onClick="{togglefan()}"></td>
-	</tr>
-	<tr>
-		<td style="width: 81px" id="runCell" class="style1">Run</td>
-		<td style="width: 44px" class="style1"><div name="run" id="run">off</div></td>
-		<td style="width: 244px" class="style1">
-		&nbsp;</td>
-	</tr>
-	<tr>
-		<td style="width: 81px" class="style1">Mode</td>
-		<td style="width: 44px" class="style1"><div name="mode" id="mode">off</div></td>
-		<td style="width: 200px" class="style1">
-		<input type="button" value="Off" onClick="{setMode(0)}">
-		<input type="button" value="Cool" onClick="{setMode(1)}">
-		<input type="button" value="Heat" onClick="{setMode(2)}">
-		<input type="button" value="Auto" onClick="{setMode(3)}">
+		<td style="width: 81px" id="fanCell" class="style1"><div name="fan" id="fan">Fan Off</div></td>
+		<td colspan="2" style="width: 200px" class="style1">
+		<input type="button" value="Auto" name="fAuto" onClick="{setfan(0)}">
+		<input type="button" value="On" name="fOn" onClick="{setfan(1)}">
 		</td>
 	</tr>
 	<tr>
-		<td style="width: 81px" class="style1">HeatMode</td>
-		<td style="width: 44px" class="style1"><div name="heatmode" id="heatmode">Gas</div></td>
-		<td style="width: 200px" class="style1">
-		<input type="button" value="HP" onClick="{setHeatMode(0)}">
-		<input type="button" value="Gas" onClick="{setHeatMode(1)}">
-		<input type="button" value="Auto" onClick="{setHeatMode(2)}">
+		<td style="width: 44px" class="style1" id="runCell"><div name="run" id="run">off</div></td>
+		<td colspan="2">
+		<input type="button" value="Off" name="mOff" onClick="{setMode(0)}">
+		<input type="button" value="Cool" name="mCool" onClick="{setMode(1)}">
+		<input type="button" value="Heat" name="mHeat" onClick="{setMode(2)}">
+		<input type="button" value="Auto" name="mAuto" onClick="{setMode(3)}">
+		</td>
+	</tr>
+	<tr>
+		<td></td>
+		<td colspan="2">
+		<input type="button" value="HP" name="hHP" onClick="{setHeatMode(0)}">
+		<input type="button" value="Gas" name="hGas" onClick="{setHeatMode(1)}">
+		<input type="button" value="Auto" name="hAuto" onClick="{setHeatMode(2)}">
 		</td>
 	</tr>
 	<tr>
@@ -346,7 +372,7 @@ function secsToTime( elap )
 	<tr>
 		<td style="width: 81px" class="style1">Cool Lo</td>
 		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="cooll"></td>
-		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCoolLo()}"><input type="button" value="-1" onClick="{incCool(-1)}"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCoolLo()}"><input type="button" value=" -1" onClick="{incCool(-1)}"></td>
 	</tr>
 	<tr>
 		<td style="width: 81px" class="style1">Heat Hi</td>
@@ -356,7 +382,7 @@ function secsToTime( elap )
 	<tr>
 		<td style="width: 81px" class="style1">Heat Lo</td>
 		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="heatl"></td>
-		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setHeatLo()}"><input type="button" value="-1" onClick="{incHeat(-1)}"></td>
+		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setHeatLo()}"><input type="button" value=" -1" onClick="{incHeat(-1)}"></td>
 	</tr>
 	<tr>
 		<td style="width: 81px" class="style1">Threshold</td>
@@ -379,7 +405,7 @@ function secsToTime( elap )
 		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCycMin()}"></td>
 	</tr>
 	<tr>
-		<td style="width: 81px" class="style1">cycleMax</td>
+		<td style="width: 81px" class="style1">cycle Max</td>
 		<td style="width: 44px" class="style1"><input type=text size=5 value=0 id="cycmax"></td>
 		<td style="width: 200px" class="style1"><input type="button" value="Set" onClick="{setCycMax()}"></td>
 	</tr>
@@ -400,7 +426,7 @@ function secsToTime( elap )
 </table>
 
 <br>
-<table style="width: 360px">
+<table style="width: 350px">
 	<tr>
 		<td style="width: 80px" class="style3">Cycle</td>
 		<td style="width: 147px" class="style3">
@@ -410,17 +436,6 @@ function secsToTime( elap )
 	</tr>
 </table>
 <br>
-<input type="button" value="Poll" onClick="{
-    if(document.all.myPoll.value < 5){document.all.myPoll.value = 5}
-    getAll()
-    clearInterval(document.myPollSave)
-    document.myPollSave = setInterval('getAll();',document.all.myPoll.value*1000)
-}">
-every <input type=text size=5 value=20 id="myPoll">Seconds
-
-<input type="button" value="Stop" onClick="{
-    clearInterval(document.myPollSave)
-}">
 
 </body>
 </html>
