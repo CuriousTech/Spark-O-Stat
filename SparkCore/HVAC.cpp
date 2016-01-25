@@ -44,6 +44,10 @@ HVAC::HVAC()
 	pinMode(P_COOL, OUTPUT);
 	pinMode(P_REV, OUTPUT);
 	pinMode(P_HEAT, OUTPUT);
+	digitalWrite(P_HEAT, LOW);
+	digitalWrite(P_REV, LOW);
+	digitalWrite(P_COOL, LOW);
+	digitalWrite(P_FAN, LOW);
 }
 
 // Switch the fan on/off
@@ -119,7 +123,10 @@ void HVAC::service()
 		if(++m_cycleTimer < 20)		        // Block changes for at least 20 seconds
 			return;
 		if(m_cycleTimer >= m_EE.cycleMax)   // running too long (todo: skip for eHeat?)
-			m_bStop = true;
+		{
+		    m_bStop = true;
+            Particle.publish("pushbullet", "SparkOStat Cycle limit hit", 60, PRIVATE);
+        }
 	}
 	else
 	{
@@ -151,7 +158,7 @@ void HVAC::service()
 				fanSwitch(true);
 				if(digitalRead(P_REV) != HIGH)
 				{
-					digitalWrite(P_REV, HIGH);  // set to heatpump to cool (if heats, reverse this)
+					digitalWrite(P_REV, HIGH);  // set heatpump to cool (if heats, reverse this)
 					delay(5000);                //    if no heatpump, remove
 				}
 				digitalWrite(P_COOL, HIGH);
@@ -165,7 +172,7 @@ void HVAC::service()
 				else
 				{
 					fanSwitch(true);
-					if(digitalRead(P_REV) != LOW)  // set to heatpump to heat (if heats, reverse this)
+					if(digitalRead(P_REV) != LOW)  // set heatpump to heat (if heats, reverse this)
 					{
 						digitalWrite(P_REV, LOW);
 						delay(5000);
