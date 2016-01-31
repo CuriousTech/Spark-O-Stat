@@ -25,11 +25,13 @@
 SYSTEM_MODE(SEMI_AUTOMATIC);
 SYSTEM_THREAD(ENABLED);
 
+uint8_t wifi_retry_count = 0;
+
 //#define T_CAL     // switch to touchscreen calibration mode (draws hits and 4 temp buttons are calibration values adjusted by thumbwheel)
 
 #define DHT_TEMP_ADJUST	(-3.0)	// Adjust indoor temp by degrees
 #define DHT_RH_ADJUST    (3.0)	// Adjust indoor Rh by %
-#define DHT_PERIOD  (15 * 1000)  // 15 seconds
+#define DHT_PERIOD  (10 * 1000)  // 10 seconds
 
 #define ONE_DAY_MILLIS (24 * 60 * 60 * 1000)
 
@@ -89,7 +91,6 @@ void displayTime()
 	static char lastMin = -1;
 
 	sprintf(szTime, "%s %2d:%02d:%02d %cM", _days_short[Time.weekday()-1], Time.hourFormat12(), Time.minute(), Time.second(), Time.isAM() ? 'A':'P');
-
 	tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
 	tft.setTextSize(2);
 
@@ -104,7 +105,7 @@ void displayTime()
 	lastMin = szTime[11];
 	if(szTime[4] == '0') szTime[4] = ' ';
 	tft.setCursor(38, 0);
-	tft.println(szTime);
+	tft.println(szTime); // Time.format("%a %I:%M:%S%p"));
 }
 
 //---------------------------
@@ -881,6 +882,7 @@ void setup()
 	DHT.acquire();
 	bDHT = true;
 	hvac.enable();
+	WiFi.on();
 }
 
 void loop()
@@ -909,13 +911,30 @@ void loop()
 
 	if(Time.second() != lastSec)   // things to do every second
 	{
-
-        if(!Particle.connected())
-        {
-            Particle.connect();
-        }
-        
 		lastSec = Time.second();
+
+        if(lastSec & 1)
+        {
+            if(wifi_retry_count < 10)
+            {
+                if(!WiFi.ready())
+                {
+                    WiFi.connect();
+                    wifi_retry_count++;
+                }
+                else if(!Particle.connected())
+                {
+                    Particle.connect();
+                    wifi_retry_count++;
+                }
+            }
+            else
+            {
+                WiFi.off();
+                wifi_retry_count = 0;
+                WiFi.on();
+            }
+        }
 
         if(millis() - lastSync >= ONE_DAY_MILLIS)
         {
@@ -943,7 +962,7 @@ void loop()
 
         displayTime();
         hvac.service();
-//        drawSignal(150, 90, 40);
+        drawSignal(150, 90, 40);
 
         if(hvac.getMode() != lastMode || hvac.getState() != nState || bFan != hvac.getFanRunning())   // erase prev highlight
         {
