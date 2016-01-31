@@ -98,15 +98,14 @@ void HVAC::service()
 	if(m_fanPostTimer)		        		// Fan conintuation delay
 	{
 		if(--m_fanPostTimer == 0)
-			if(!m_bRunning)			        // Ensure system isn't running
+			if(!m_bRunning && m_bFanMode == false) // Ensure system isn't running and fanMode is auto
 				fanSwitch(false);
 	}
 
-    if(m_remoteTimer)                       // remote temperature override timer
-    {
-        m_remoteTimer--;
-    }
-
+	if(m_remoteTimer)                       // remote temperature override timer
+	{
+		m_remoteTimer--;
+	}
 
 	if(m_overrideTimer)
 	{
@@ -124,9 +123,9 @@ void HVAC::service()
 			return;
 		if(m_cycleTimer >= m_EE.cycleMax)   // running too long (todo: skip for eHeat?)
 		{
-		    m_bStop = true;
-            Particle.publish("pushbullet", "SparkOStat Cycle limit hit", 60, PRIVATE);
-        }
+			m_bStop = true;
+			Particle.publish("pushbullet", "SparkOStat Cycle limit hit", 60, PRIVATE);
+		}
 	}
 	else
 	{
@@ -139,7 +138,7 @@ void HVAC::service()
 			m_bStop = true;
 		if(m_idleTimer >= 5)
 		{
-            m_EE.heatMode = m_setHeat;
+			m_EE.heatMode = m_setHeat;
 			m_EE.Mode = m_setMode;	        // User may be cycling through modes (give 5s)
 			calcTargetTemp(m_EE.Mode);
 		}
@@ -166,7 +165,6 @@ void HVAC::service()
 			case Mode_Heat:
 				if(hm)  // gas
 				{
-					fanSwitch(false);
 					digitalWrite(P_HEAT, HIGH);
 				}
 				else
@@ -446,11 +444,11 @@ bool HVAC::getFanRunning()
     // Check if NG furnace is running, which controls the fan automatically
 	uint8_t mode = (m_EE.Mode == Mode_Auto) ? m_AutoMode : m_EE.Mode; // convert auto to just cool / heat
 
-    if(mode == Mode_Heat && ( m_EE.heatMode == Heat_NG || (m_EE.heatMode == Heat_Auto && m_AutoHeat == Heat_NG) )) // if heat is nat gas
-    {
-        if(m_bRunning || m_furnaceFan)
-            bOn = true;
-    }
+	if(mode == Mode_Heat && ( m_EE.heatMode == Heat_NG || (m_EE.heatMode == Heat_Auto && m_AutoHeat == Heat_NG) )) // if heat is nat gas
+	{
+		if(m_bRunning || m_furnaceFan)
+			bOn = true;
+	}
 
 	return bOn;
 }
