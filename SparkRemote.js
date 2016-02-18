@@ -1,25 +1,26 @@
 //  Sparkostat script running on PngMagic  http://www.curioustech.net/pngmagic.html
 //
 
-	spark = 'https://api.particle.io/v1/devices/'
-	deviceID = 'xxxxxxxxxxxxxxxxxxxxxxxx'
+	particleUrl = 'https://api.particle.io/v1/devices/'
+	ParticleHVAC = 'xxxxxxxxxxxxxxxxxxxxxxxx'
 	token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
 	kwh = 3600 // killowatt hours (compressor+fan)
 	ppkwh = 0.126  // price per KWH  (price / KWH)
-	ppkwh  += 0.101 + 0.03 // surcharge 10.1%, school 3%, misc
+	ppkwh  += 0.091 + 0.03 // surcharge 9.1%, school 3%, misc
 	ccfs	= 0.70 / (60*60) // NatGas cost per hour divided into seconds
 
 	modes = new Array('Off', 'Cool', 'Heat', 'Auto')
 
 	btnX = 120
-	btnY = 45
-	btnW = 40
+	btnY = 40
+	btnW = 38
 
 	if(Reg.overrideTemp == 0)
 		Reg.overrideTemp = -1.2
 
-	var settings
+	var hvacJson
+	pubset = false
 
 	streaming = false
 	cloud = false
@@ -27,21 +28,21 @@
 
 	Pm.Window('SparkRemote')
 
-	Gdi.Width = 208 // resize drawing area
-	Gdi.Height = 338
+	Gdi.Width = 208
+	Gdi.Height = 320
 
 	Pm.ParticleListen()
 
-	Pm.SetTimer(2*60*1000)
+	Pm.SetTimer(30*60*1000)	// infrequent changing values are checked ever 30 mins
 	OnTimer()
 
 // Handle published events
-function OnCall(msg, data, d2)
+function OnCall(msg, event, data, d2)
 {
 	switch(msg)
 	{
 		case 'HTTPSTATUS':
-			switch(+data)
+			switch(+event)
 			{
 				case 400: s = 'Bad request'; break
 				case 408: s = 'Request timeout'; break
@@ -50,29 +51,71 @@ function OnCall(msg, data, d2)
 				case 12157: s =  'Enable Internet Options-> Advanced -> SSL2/3'; break
 				default: s = ' '
 			}
-			Pm.Echo( ' ParticleRemote error: ' + data + ' ' + s)
+			Pm.Echo( ' ParticleRemote error: ' + event + ' ' + s)
 			break
 		case 'HTTPDATA':
-			procLine(data)
+			if(data.length) procLine(event, data)
 			break
 		case 'HTTPCLOSE':
 			break
 
-		case 'StreamStatus':
-			Pm.Echo('Stream ' + data)
-			streaming = +data
+		case 'StreamStatus':	// event from ParticleListen 
+			Pm.Echo('Stream ' + event)
+			streaming = +event
 			break
 
-		case 'CloudStatus':
-			Pm.Echo('Cloud ' + data)
-			cloud = +data
+		case 'CloudStatus': // event from ParticleListen 
+			Pm.Echo('Cloud ' + event)
+			cloud = +event
 			break
 
-			Pm.Echo('Cloud status ' + Json.data) // online / offline status
+		case 'hvacData': // event from ParticleListen (interval published data)
+			hvacJson = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
+					event.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + event + ')')
+			running = +hvacJson.r
+			fan = +hvacJson.fr
+			inTemp = +hvacJson.it / 10
+			rh = +hvacJson.rh / 10
+			targetTemp = +hvacJson.tt / 10
+			filterMins = +hvacJson.fm
+			outTemp = +hvacJson.ot / 10
+			outFL = +hvacJson.ol
+			outFH = +hvacJson.oh
+			cycleTimer = +hvacJson.ct
+			fanTimer = +hvacJson.ft
+			runTotal = +hvacJson.rt
+			tempDiffTotal = +hvacJson.td
 
+			stat = 0
+			if(running)
+				stat = (mode == 3) ? autoMode : mode // if(auto) stat = heat/cool
+			if(stat == 2 && heatMode == 0) // if (heat & heatMode == NG)
+				stat = 3
+
+			date = new Date()
+			if((date.getMinutes() & 3) == 0)
+				LogTemps( stat, fan, inTemp, targetTemp, rh )
+			if(Pm.FindWindow( 'HVAC' ))
+				Pm.History( 'REFRESH' )
+			Draw()
+			break
+
+		case 'UPDATE':	// event from HVAC when state changes
+			switch(+event)
+			{
+				case 0: running = 0; break
+				case 1: running = 1; break
+				case 2: running = 1; break
+			}
+			fan = +data
+			Draw()
+			OnTimer()
+			if(Pm.FindWindow( 'HVAC' ))  // HVAC history window is open
+				Pm.History( 'REFRESH' )
+			break
 
 		case 'BUTTON':
-			switch(data)
+			switch(event)
 			{
 				case 0:		// Override
 					ovrActive = !ovrActive
@@ -91,8 +134,7 @@ function OnCall(msg, data, d2)
 				case 4:		// mode
 					heatMode = (heatMode+1) % 3; SetVar('heatMode', heatMode)
 					break
-				case 5:		// Unused
-					GetVar( 'rssi' )
+				case 5:		// blank
 					break
 				case 6:		// cool H up
 					setTemp(1, coolTempH + 0.1, 1); SetVar('cooltemph', (coolTempH * 10).toFixed())
@@ -164,141 +206,74 @@ function OnCall(msg, data, d2)
 			Draw()
 			break
 
-		case 'UPDATE':
-			switch(+data)
-			{
-				case 0: running = 0; break
-				case 1: running = 1; break
-				case 2: running = 1; break
-			}
-			fan = +d2
-			Draw()
-			break
-
 		default:
 			Pm.Echo('SR Unrecognised ' + msg)
 			break
 	}
 }
 
+function OnTimer()
+{
+	GetSettings()
+}
+
 function SetVar(v, val)
 {
-	event = 'setvar'
-	Http.Connect( particleUrl + deviceID + '/setvar?access_token=' + token, 'POST', 'params=' + v + ',' + val )
+	Http.Connect( 'setvar', particleUrl + ParticleHVAC + '/setvar?access_token=' + token, 'POST', 'params=' + v + ',' + val )
 }
 
-function GetVar(v)
+function GetSettings()
 {
-	event = 'getvar'
-	Http.Connect( particleUrl + deviceID + '/getvar?access_token=' + token, 'POST', 'params=' + v )
+	Http.Connect('settings', particleUrl + ParticleHVAC + '/settings?access_token=' + token )
 }
 
-function procLine(data)
+function procLine(event, data)
 {
-//Pm.Echo('Line: ' + data)
 	Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 			data.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + data + ')')
 
 	switch(event)
 	{
 		case 'settings':
-			settings = Json.return_value
-
-			mode = settings & 3
-			autoMode = (settings >> 2) & 3
-			heatMode = (settings >> 4) & 3
-			fanMode = (settings >> 6) & 1
-			running = (settings>> 7) & 1
-			fan = (settings>> 8) & 1
-			ovrActive = (settings>> 9) & 1
-			eHeatThresh = (settings >> 10) & 0x3F
-			fanDelay = (settings >> 16) & 0xFF
-			cycleThresh = ((settings >> 24) & 0xFF) / 10
-			event = 'settings_result'
-			Http.Connect( particleUrl + deviceID + '/result?access_token=' + token )
-			break
-
-		case 'settings_result':
 			str = Json.result
 			Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
 				str.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + str + ')')
+
+			mode = +Json.m
+			autoMode = +Json.am
+			heatMode = +Json.hm
+			fanMode = +Json.fm
+			ovrActive = +Json.ot
+			eHeatThresh = +Json.ht
 
 			coolTempL = +Json.c0 / 10
 			coolTempH = +Json.c1 / 10
 			heatTempL = +Json.h0 / 10
 			heatTempH = +Json.h1 / 10
-			inTemp = +Json.it / 10
-			targetTemp = +Json.tt / 10
 			idleMin = +Json.im
 			cycleMin = +Json.cn
 			cycleMax = +Json.cx
-			filterMins = +Json.fh
-			outTemp = +Json.ot / 10
-			outFL = +Json.ol
-			outFH = +Json.oh
-			cycleTimer = +Json.ct
-			fanTimer = +Json.ft
-			runTotal = +Json.rt
-			tempDiffTotal = +Json.td
+			cycleThresh = +Json.ct / 10
+			Reg.cycleThresh = cycleThresh
+			fanDelay = Json.fd
 			overrideTime = +Json.ov
-			rh = +Json.rh / 10
 			remoteTimer = Json.rm
 			remoteTimeout = Json.ro
 
-			stat = 0
-			if(running)
-				stat = (mode == 3) ? autoMode : mode // if(auto) stat = heat/cool
-			if(stat == 2 && heatMode == 0) // if (heat & heatMode == NG)
-				stat = 3
-
-			LogTemps( stat, fan, inTemp, targetTemp, rh )
-			if(Pm.FindWindow( 'HVAC' ))
+			if(!pubset)
 			{
-				Pm.History( 'REFRESH' )
+				SetVar('pubtime', 60)	// set to publish values every 60 seconds
+				pubset = true
 			}
 			Draw()
 
-			if(Json.lc) // see if there are logs
-			{
-				event = 'log'
-				Http.Connect( particleUrl + deviceID + '/getvar?access_token=' + token, 'POST', 'params=log' )
-			}
 			if(!streaming)
 			{
-				Pm.ParticleListen('START')
-			}
-			break
-
-		case 'log':
-			logCount = Json.return_value
-//			Pm.Echo('log ' + Json.return_value)
-			if(logCount)
-			{
-				event = 'logres'
-				Http.Connect( particleUrl + deviceID + '/result?access_token=' + token )
-			}
-			break
-
-		case 'logres':
-			str = Json.result
-			Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
-				str.replace(/"(\\.|[^"\\])*"/g, ''))) && eval('(' + str + ')')
-
-			// time mode secs t1  rh1 t2  rh2
-
-			if(logCount > 1)
-			{
-				event = 'log'
-				Http.Connect( particleUrl + deviceID + '/getvar?access_token=' + token, 'POST', 'params=log' )
+				Pm.ParticleListen('START')	// start the event listener
 			}
 			break
 
 		case 'setvar':
-//			Pm.Echo('setvar ' + Json.return_value)
-			break
-
-		case 'getvar':
-			Pm.Echo('getvar ' + Json.return_value)
 			break
 
 		default:
@@ -354,21 +329,15 @@ function setTemp( mode, Temp, hl)
 	}
 }
 
-function OnTimer()
-{
-	event = 'settings'
-	Http.Connect( particleUrl + deviceID + '/getvar?access_token=' + token, 'POST', 'params=settings' )
-}
-
 function Draw()
 {
 	Gdi.Clear(0) // transaprent
 
 	// rounded window
 	Gdi.Brush( Gdi.Argb( 160, 0, 0, 0) )
-	Gdi.FillRectangle(0, 0, Gdi.Width-1, Gdi.Height-1, 6)
+	Gdi.FillRectangle(0, 0, Gdi.Width-1, Gdi.Height-1)
 	Gdi.Pen( Gdi.Argb(255, 0, 0, 255), 1 )
-	Gdi.Rectangle(0, 0, Gdi.Width-1, Gdi.Height-1, 6)
+	Gdi.Rectangle(0, 0, Gdi.Width-1, Gdi.Height-1)
 
 	// Title
 	Gdi.Font( 'Courier New', 15, 'BoldItalic')
@@ -387,7 +356,8 @@ function Draw()
 
 	x = 5
 	y = 22
-
+	if(hvacJson == undefined)
+		return
 	Gdi.Text('In: ' + inTemp + '°', x, y)
 	Gdi.Text( '>' + targetTemp + '°  ' + rh + '%', x + 54, y)
 
@@ -405,7 +375,7 @@ function Draw()
 		case 3: s = 'eHeating'; break
 	}
 
-	bh = 19
+	bh = 18
 
 	Gdi.Text('Run:', x, y)
 	Gdi.Text(running ? s : "Off", x + 100, y, 'Right')
@@ -448,15 +418,15 @@ function Draw()
 	else
 		cost = ccfs * runTotal
 
-	Gdi.Text('Filter:', x, y);  Gdi.Text(filterMins*60, x + 90, y, 'Time')
+	Gdi.Text('Filter:', x, y);  Gdi.Text(filterMins*60, x + 100, y, 'Time')
 	Gdi.Pen(Gdi.Argb(255,20,20,255), 2 )	// Button square
-	Pm.Button(x, y, 90, 15)
-	Gdi.Rectangle(x, y, 90, 15, 2)
-	Gdi.Text('Cost:', x+100, y); 	Gdi.Text( '$' +cost.toFixed(2) , x + 190, y, 'Right')
+	Pm.Button(x, y, 100, 15)
+	Gdi.Rectangle(x, y, 100, 15, 2)
+	Gdi.Text('Cost:', x+110, y); 	Gdi.Text( '$' +cost.toFixed(2) , x + 190, y, 'Right')
 
 	y += bh
-	Gdi.Text('Cyc:', x, y); 	Gdi.Text( cycleTimer, x + 90, y, 'Time')
-	Gdi.Text('Tot:', x+100, y); 	Gdi.Text(runTotal, x + 190, y, 'Time')
+	Gdi.Text('Cyc:', x, y); 	Gdi.Text( cycleTimer, x + 100, y, 'Time')
+	Gdi.Text('Tot:', x+110, y); 	Gdi.Text(runTotal, x + 190, y, 'Time')
 
 	heatModes = Array('HP', 'NG', 'Auto')
 	buttons = Array(fanMode ? 'On' : 'Auto', modes[mode],
@@ -468,8 +438,8 @@ function Draw()
 		for (col = 0; col < 2; col++)
 		{
 			x = btnX + (col * btnW)
-			y = btnY + (row * 19)
-			drawButton(buttons[n++], x, y, btnW, 18)
+			y = btnY + (row * bh)
+			drawButton(buttons[n++], x, y, btnW, bh-2)
 		}
 	}
 }
@@ -489,17 +459,7 @@ function ShadowText(str, x, y, clr)
 	Gdi.Brush( clr )
 	Gdi.Text( str, x, y, 'Center')
 }
-/*
-function LogHVAC( uxt, state, fan )
-{
-	fso = new ActiveXObject( 'Scripting.FileSystemObject' )
 
-	tf = fso.OpenTextFile( 'hvacdata.log', 8, true)
-	tf.WriteLine( uxt + ',' + state + ',' + fan )
-	tf.Close()
-	fso = null
-}
-*/
 function LogTemps( stat, fan, inTemp, targetTemp, inrh )
 {
 	if(targetTemp == 0)
