@@ -1,13 +1,14 @@
 // Particle stream listener for SparkRemote
 
   spark = 'https://api.particle.io/v1/devices/'
-  deviceID = 'xxxxxxxxxxxxxxxxxxxxxxxx'
+  ParticleHVAC = 'xxxxxxxxxxxxxxxxxxxxxxxx'
   token = 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
 
-  eventUrl = spark + deviceID + '/events?access_token=' + token
+  // This reads all particle devices owned
+  eventUrl = spark + 'events?access_token=' + token
 
 // Handle published events
-function OnCall(msg, data)
+function OnCall(msg, event, data)
 {
 	switch(msg)
 	{
@@ -18,14 +19,13 @@ function OnCall(msg, data)
 				Pm.SparkRemote( 'CloudStatus', 1) // assume it's connected
 				break
 			}
-			if( Http.Connect( eventUrl ) ) // Start the event stream
+			if( Http.Connect( 'listen',eventUrl ) ) // Start the event stream
 					Pm.SparkRemote( 'StreamStatus', 1)
 			else
 					Pm.Echo('Stream failed')
-			Pm.SetTimer(60*1000)		// recheck every 60 seconds
+			Pm.SetTimer(20*1000)		// recheck every 20 seconds
 			break
 		case 'HTTPDATA':
-//			Pm.Echo('Data ' + data)
 			heartbeat = new Date()
 			if(data.length <= 2) break // keep-alive heartbeat
 			lines = data.split('\n')
@@ -39,6 +39,7 @@ function OnCall(msg, data)
 			break
 		default:
 			Pm.Echo('PL Unrecognised ' + msg)
+			Pm.Echo(event + ' : ' + data)
 			break
 	}
 }
@@ -46,7 +47,10 @@ function OnCall(msg, data)
 function OnTimer()
 {
 	if(Http.Connected)
+	{
+		Pm.Echo('Connected')
 		return
+	}
 	if( Http.Connect( eventUrl ) ) // Start the event stream
 		Pm.SparkRemote( 'StreamStatus', 1)
 	else
@@ -83,18 +87,31 @@ function procLine(data)
 	switch(event)
 	{
 		case 'spark/status':
-			online = (Json.data == 'online') ? true:false
-			Pm.SparkRemote( 'CloudStatus', online)
+			if(Json.coreid == ParticleHVAC)
+			{
+				online = (Json.data == 'online') ? true:false
+				Pm.SparkRemote( 'CloudStatus', online)
+			}
+			else
+			{
+				Pm.Echo('Core ' + Json.coreid + ' : ' + Json.data)
+			}
 			break
 		case 'spark/flash/status':
 			Pm.Echo('Flash Status ' + Json.data) // flash status
+			break
+		case 'spark/device/app-hash':
+			Pm.Echo('App-hash ' + Json.data) // flash status
 			break
 		case 'spark/cc3000-patch-version': // this posts every time the device comes online
 			cc3000version = Json.data
 			break
 		case 'stateChg':	// Mine.  mode/state/fan change
+			if(Json.coreid == ParticleHVAC)
+			{
+//				Pm.Echo('HVAC stateChg')
+			}
 			d = isoDateToJsDate( Json.published_at )
-//			Pm.Echo('pub at ' + d)
 
 			str = Json.data
 			Json = !(/[^,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t]/.test(
@@ -106,8 +123,21 @@ function procLine(data)
 			Pm.SparkRemote('UPDATE', Json.State, Json.Fan)
 			OnTimer()  // read the rest of the data
 			break
+		case 'hvacData':
+			Pm.SparkRemote('hvacData', Json.data)
+			break
+		case 'hvacLog':
+			Pm.Echo('hvacLog', Json.data)
+			break
 		case 'status':
 			Pm.Echo('PL Status: ' + Json.data)
+			break
+		case 'pushbullet':
+			Pm.Echo('PL Pushbullet : ' + Json.data)
+			break
+		case 'hook-sent/pushbullet':
+			break
+		case 'hook-response/pushbullet/0':
 			break
 		default:
 			Pm.Echo('PL Unknown event: ' + event)
