@@ -38,64 +38,54 @@ var Json, mode, autoMode, heatMode, fanMode, running, fan
 var modes = new Array('Off', 'Cool', 'Heat', 'Auto')
 var heatmodes = new Array('HP', 'NG', 'Auto')
 var polling=false
-function readVar(varName)
-{
-	requestURL = "https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/" + varName + "/?access_token=" + document.all.myToken.value;
-	$.getJSON(requestURL, function(json){
-		Json = JSON.parse(json.result)
-	
-		document.all.cooll.value = +Json.c0 / 10
-		document.all.coolh.value = +Json.c1 / 10
-		document.all.heatl.value = +Json.h0 / 10
-		document.all.heath.value = +Json.h1 / 10
-		document.all.intemp.innerHTML = +Json.it / 10
-		document.all.target.innerHTML = +Json.tt / 10
-		document.all.idlemin.value = +Json.im
-		document.all.cycmin.value = +Json.cn
-		document.all.cycmax.value = +Json.cx
-	//	document.all.filtermins.innerHTML = +Json.fh
-		document.all.outtemp.innerHTML = +Json.ot / 10
-	//	outFL = +Json.ol
-	//	outFH = +Json.oh
-		document.all.cyctimer.innerHTML = secsToTime( +Json.ct )
-	//	document.all.fantimer.innerHTML = +Json.ft
-		document.all.runtotal.innerHTML = secsToTime( +Json.rt )
-	//	tempDiffTotal = +Json.td
-		document.all.ovrtime.value = +Json.ov
-		document.all.rh.innerHTML = +Json.rh / 10
-	
-		if( +document.all.ovrtemp.value == 0) // set a better default
-			document.all.ovrtemp.value = -1.0
-		document.all.ovrCell.setAttribute('class', ovrActive ? 'style5' : 'style1');
-	});
-}
 
-function getVar(varName)
+function startEvents()
 {
-	requestURL = "https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/getvar/";
-	$.post( requestURL, { params: varName, access_token: document.all.myToken.value }, function(result){
-		Json = JSON.parse(result)
-		settings = Json.return_value
-	   	mode = settings & 3
-		autoMode = (settings >> 2) & 3
-		heatMode = (settings >> 4) & 3
-		fanMode = (settings >> 6) & 1
-		running = (settings>> 7) & 1
-		fan = (settings>> 8) & 1
-		ovrActive = (settings>> 9) & 1
-	//	eHeatThresh = (settings >> 10) & 0x3F
-		document.all.fandelay.value = (settings >> 16) & 0xFF
-		document.all.thresh.value = ((settings >> 24) & 0xFF) / 10
+	eventSource = new EventSource("https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/events/?access_token=" + document.all.myToken.value)
+
+	eventSource.addEventListener('open', function(e) {
+		document.all.dbg.value = 'Open' },false);
+
+	eventSource.addEventListener('error', function(e) {
+		document.all.dbg.value = 'Error' },false);
+
+	eventSource.addEventListener('hvacData', function(e) { // listen to frequent changed values
+		packet = JSON.parse(e.data);
+		Json = JSON.parse(packet.data);
+
+		running = +Json.r
+		fan = +Json.fr
 	
+		document.all.intemp.innerHTML = +Json.it / 10
+		document.all.rh.innerHTML = +Json.rh / 10
+		document.all.target.innerHTML = +Json.tt / 10
+		document.all.outtemp.innerHTML = +Json.ot / 10
+		document.all.cyctimer.innerHTML = secsToTime( +Json.ct )
+		document.all.runtotal.innerHTML = secsToTime( +Json.rt )
+
 		document.all.fan.innerHTML = fan ? "Fan On" : "Fan Off"
 		document.all.fanCell.setAttribute('class', fan ? 'style5' : 'style1')
 		document.all.fAuto.setAttribute('class', fanMode == 0 ? 'style5':'')
 		document.all.fOn.setAttribute('class', fanMode == 1 ? 'style5':'')
-	
+
 		m = (mode == 4) ? autoMode : mode
 		document.all.run.innerHTML = running ? modes[m] : "Idle"
 		document.all.runCell.setAttribute('class', running ? 'style5' : 'style1');
-	
+	},false);
+}
+
+function readSettings() // read all settings
+{
+	requestURL = "https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/settings/?access_token=" + document.all.myToken.value;
+	$.getJSON(requestURL, function(json){
+		Json = JSON.parse(json.result)
+
+	   	mode = +Json.m
+		autoMode = +Json.am
+		heatMode = +Json.hm
+		fanMode = +Json.fm
+		ovrActive = +Json.ot
+
 		document.all.mOff.setAttribute('class', mode == 0 ? 'style5':'')
 		document.all.mCool.setAttribute('class', mode == 1 ? 'style5':'')
 		document.all.mHeat.setAttribute('class', mode == 2 ? 'style5':'')
@@ -104,8 +94,21 @@ function getVar(varName)
 		document.all.hHP.setAttribute('class', heatMode == 0 ? 'style5':'')
 		document.all.hGas.setAttribute('class', heatMode == 1 ? 'style5':'')
 		document.all.hAuto.setAttribute('class', heatMode == 2 ? 'style5':'')
-
-		readVar( 'result' )	// result set by settings call
+	
+		document.all.cooll.value = +Json.c0 / 10
+		document.all.coolh.value = +Json.c1 / 10
+		document.all.heatl.value = +Json.h0 / 10
+		document.all.heath.value = +Json.h1 / 10
+		document.all.idlemin.value = +Json.im
+		document.all.cycmin.value = +Json.cn
+		document.all.cycmax.value = +Json.cx
+		document.all.thresh.value = +Json.ct / 10
+		document.all.fandelay.value = +Json.fd
+		document.all.ovrtime.value = +Json.ov
+	
+		if( +document.all.ovrtemp.value == 0) // set a better default
+			document.all.ovrtemp.value = -1.0
+		document.all.ovrCell.setAttribute('class', ovrActive ? 'style5' : 'style1');
 	});
 }
 
@@ -113,11 +116,6 @@ function setVar(varName, value)
 {
 	requestURL = "https://api.particle.io/v1/devices/" + document.all.myDeviceId.value + "/setvar/";
 	$.post( requestURL, { params: varName + ',' + value, access_token: document.all.myToken.value });
-}
-
-function getAll()
-{
- 	getVar('settings')
 }
 
 function setfan(n)
@@ -264,16 +262,19 @@ function secsToTime( elap )
 	document.all.hide.value='Show'
 	document.getElementById('myToken').value = myStorage1
   }
-    
+ 
   myStorage2 = localStorage.getItem('myStoredText2')
   if(myStorage2  != null){
 	document.getElementById('myDeviceId').value = myStorage2
-	getAll()
-  }   
+	readSettings()
+  }
+  
   myStorage3 = localStorage.getItem('myStoredText3')
   if(myStorage3  != null){
 	document.getElementById('ovrtemp').value = myStorage3
   }
+  startEvents()
+  setVar('pubtime', 60)
 }">
 <strong><em>CuriousTech SparkOstat Remote</em></strong><br>
 <table style="width: 320px">
@@ -302,25 +303,7 @@ function secsToTime( elap )
 	document.all.hide.value='Show'
     }
 }">
-<input type="button" value="Refresh" onClick="{getAll()}">
-<input type="button" value="Poll" name="poll" onClick="{
-    if(document.all.myPoll.value < 5){document.all.myPoll.value = 5}
-    getAll()
-    clearInterval(document.myPollSave)
-    if(polling==false)
-    {
-	 	document.all.poll.value='Stop'
-	 	polling = true
-	    document.myPollSave = setInterval('getAll();',document.all.myPoll.value*1000)
-    }
-    else
-    {
-	 	polling = false
-	 	document.all.poll.value='Poll'
-    }
-	document.all.poll.setAttribute('class', polling ? 'style5':'')
-}">
-every <input type=text size=4 value=20 id="myPoll">Secs
+<input type="button" value="Refresh" onClick="{readSettings()}">
 <br>
 <br>
 <table style="width: 350px; height: 22px;" cellspacing="0">
@@ -436,6 +419,6 @@ every <input type=text size=4 value=20 id="myPoll">Secs
 	</tr>
 </table>
 <br>
-
+<input type=text size=20 value=0 id="dbg">
 </body>
 </html>
