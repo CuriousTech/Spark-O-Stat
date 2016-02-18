@@ -1,6 +1,8 @@
 ## Spark-O-Stat
 SparkCore based WiFi thermostat project
 
+Note: As of 2/18/2016 the SparkCore code is depreciated.  The Photon is now in use, and all changes will be made there.  A new large font has been added since there's more room, and data is published instead of read.  The HTML page and .js scripts will not work with the old code.
+
 This is my first GitHib project, and the idea is simple.  It's opensource and flexible with a color LCD touchscreen, rotary encoder and speaker to allow room for creative software.  The initial concept will be to control for efficiency by scaling the indoor temperature to outdoor instead of drastic bumps using schedules, and adjustments using predictive code based on experiment and observation.  But all that can be removed and replaced with schedules if desired.
 
 ![UI](http://www.curioustech.net/images/sparkostat3.png)
