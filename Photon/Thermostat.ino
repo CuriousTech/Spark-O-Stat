@@ -91,30 +91,39 @@ void dht_wrapper()
 
 //-----
 
-static const char _days_short[7][4] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+static const char _days_short[8][4] = {"", "Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 
 void displayTime()
 {
-	char szTime[20];
+	char szTime[16];
 	static char lastMin = -1;
-    static int x = 200;
+	static char lastDay = -1;
 
-	sprintf(szTime, "%s %2d:%02d:%02d %cM", _days_short[Time.weekday()-1], Time.hourFormat12(), Time.minute(), Time.second(), Time.isAM() ? 'A':'P');
+	sprintf(szTime, "%2d:%02d:%02d %cM", Time.hourFormat12(), Time.minute(), Time.second(), Time.isAM() ? 'A':'P');
 	tft.setTextColor(ILI9341_WHITE, ILI9341_BLACK);
-	tft.setTextSize(2);
 
-	if(lastMin == szTime[8]) // draw just seconds
+	if(szTime[0] == '0') szTime[0] = ' ';
+
+	if(Time.weekday() != lastDay)   // Draw weekday
 	{
-		szTime[12] = 0;     // cut to seconds
-		tft.setCursor(x - 61, 0);
-		tft.drawPropString(szTime + 10, true);
+		tft.setCursor(20, 0);
+		tft.drawPropString(_days_short[Time.weekday()], true);
+		lastDay = Time.weekday();
+	}
+    
+	if(lastMin == Time.minute()) // draw just seconds
+	{
+		int x = 75;
+		if(szTime[0] != ' ') x += 8; // 0 is 12 pixels
+		szTime[8] = 0;     // cut to seconds
+		tft.setCursor( x + (3*13) + (2*5), 0);
+		tft.drawPropString(szTime + 6, true);
 		return;
 	}
 
-	lastMin = szTime[8];
-	if(szTime[4] == '0') szTime[4] = ' ';
-	tft.setCursor(38, 0);
-	x = tft.drawPropString(szTime, true); // Time.format("%a %I:%M:%S%p"));
+	lastMin = Time.minute(); // draw full 12H time
+	tft.setCursor(70, 0);
+	tft.drawPropString(szTime, true); // Time.format("%a %I:%M:%S%p"));
 }
 
 XML_tag_t tags[] =
